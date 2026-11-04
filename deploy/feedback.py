@@ -14,11 +14,20 @@
   POST /admin/delete        {"ids": [...]} или {"all": true} — удалить отзывы (удалённые
                             откладываются в feedback.deleted.jsonl, их можно вернуть руками)
 
+  POST /api/players         снимок аккаунта из игры: кто играет и как далеко прошёл
+  GET  /admin/igroki        вкладка «Кто играл»: поиск по фамилии, фильтр по классу и игре
+  GET  /admin/igroki.xlsx   тот же список в Excel (?klass=7Б&game=udar — только выбранные)
+  POST /admin/igroki/delete {"ids": [...]} — убрать игроков из списка
+
+Ученик (по желанию, и в отзыве, и в игре): имя, фамилия и класс — чтобы учитель нашёл
+его в списке. Без отметки «Я ученик» фамилия и класс не спрашиваются и не хранятся.
+
 Имя и возраст — по желанию. Адрес отправителя не сохраняется. Поле website — ловушка
 для ботов: человек его не видит и не заполняет.
 
-Кулдаун: и с одного компьютера (поле client — случайная метка из браузера), и с одного
-адреса — не больше 20 отзывов за 10 минут и 120 за сутки. Метки и адреса держатся
+Кулдаун: с одного компьютера (поле client — случайная метка из браузера) — не больше 20
+отзывов за 10 минут и 120 за сутки; с одного адреса — больше, потому что в школе весь класс
+выходит в интернет через один адрес. Метки и адреса держатся
 только в памяти, зашифрованными (хэш с солью), и забываются через сутки.
 
 Отзывы лежат в /var/lib/lovushki/feedback.jsonl (по строке JSON на отзыв).
@@ -26,6 +35,7 @@
 каждый новый отзыв ещё и приходит письмом.
 
 На сервере:  python3 /opt/lovushki/feedback.py --list   — прочитать все отзывы
+             python3 /opt/lovushki/feedback.py --players — кто играл
              python3 /opt/lovushki/feedback.py --keep 2 — оставить два первых, остальные удалить
              python3 /opt/lovushki/feedback.py --clear  — удалить все отзывы
              python3 /opt/lovushki/feedback.py --test-mail — проверить почту
@@ -45,12 +55,17 @@ import zipfile
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, quote
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("FEEDBACK_PORT", "8787"))
 DATA_DIR = os.environ.get("FEEDBACK_DIR", "/var/lib/lovushki")
 DATA_FILE = os.path.join(DATA_DIR, "feedback.jsonl")
 TRASH_FILE = os.path.join(DATA_DIR, "feedback.deleted.jsonl")
+PLAYERS_FILE = os.path.join(DATA_DIR, "players.json")
+PLAYERS_TRASH = os.path.join(DATA_DIR, "players.deleted.jsonl")
+MAX_PLAYERS = 50000
+GAMES = {"lovushki": "Восемь ловушек", "udar": "Двойной удар"}
 MAX_BODY = 16 * 1024
 MAX_TEXT = 1500
 MAX_NAME = 60
@@ -70,10 +85,12 @@ MAIL = {
 lock = threading.Lock()
 
 # ---------- кулдаун: чтобы с одного компьютера не сыпались отзывы ----------
-# одинаково для компьютера и для адреса
 WINDOW = 10 * 60            # короткое окно, секунд
-WINDOW_LIMIT = 20           # отзывов за 10 минут
-DAY_LIMIT = 120             # отзывов за сутки
+WINDOW_LIMIT = 20           # отзывов за 10 минут с одного компьютера
+DAY_LIMIT = 120             # отзывов за сутки с одного компьютера
+# Целый класс сидит за одним адресом школы: 30 детей пишут отзыв в конце урока
+NET_WINDOW_LIMIT = 200
+NET_DAY_LIMIT = 1000
 SALT = os.urandom(16)       # новая соль при каждом запуске: хэши нельзя сверить с адресами
 recent = {}                 # хэш → времена отправки за последние сутки
 recent_lock = threading.Lock()
@@ -94,14 +111,15 @@ def check_cooldown(computer, ip, now=None):
         # старые записи забываем, чтобы память не росла
         for k in [k for k, ts in recent.items() if not ts or now - ts[-1] > 86400]:
             del recent[k]
-        for k, who in ((computer, "с этого компьютера"), (ip, "из этой сети")):
+        for k, who, w_limit, d_limit in ((computer, "с этого компьютера", WINDOW_LIMIT, DAY_LIMIT),
+                                         (ip, "из этой сети", NET_WINDOW_LIMIT, NET_DAY_LIMIT)):
             day = [t for t in recent.get(k, []) if now - t < 86400]
             short = [t for t in day if now - t < WINDOW]
-            if len(short) >= WINDOW_LIMIT:
-                left = WINDOW - (now - short[-WINDOW_LIMIT])
+            if len(short) >= w_limit:
+                left = WINDOW - (now - short[-w_limit])
                 return left, f"Слишком много отзывов {who} подряд. Следующий можно через {wait_minutes(left)} мин."
-            if len(day) >= DAY_LIMIT:
-                left = 86400 - (now - day[-DAY_LIMIT])
+            if len(day) >= d_limit:
+                left = 86400 - (now - day[-d_limit])
                 return left, f"На сегодня отзывов {who} достаточно — спасибо! Можно будет снова завтра."
     return None
 
@@ -211,7 +229,41 @@ def stars(n):
     return "★" * full + ("½" if half else "") + "☆" * (5 - full - (1 if half else 0)) + " " + num(n)
 
 
+def clean_grade(value):
+    """«7 б», «7-Б», «11а» → «7Б», «11А». Класс — число от 1 до 11 и буква по желанию."""
+    m = re.fullmatch(r"\s*(\d{1,2})\s*[-–]?\s*([А-ЯЁа-яёA-Za-z]?)\s*(класс|кл\.?)?\s*", str(value or ""), re.I)
+    if not m or not 1 <= int(m.group(1)) <= 11:
+        return ""
+    return m.group(1) + m.group(2).upper()
+
+
+def clean_person(value, limit=40):
+    """Имя или фамилия: буквы, пробел, дефис, апостроф; каждое слово с большой буквы."""
+    text = clean_text(value, limit).replace("\n", " ")
+    text = re.sub(r"[^A-Za-zА-Яа-яЁё' -]", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" -'")
+    return "-".join(p[:1].upper() + p[1:] for p in text.split("-")) if text else ""
+
+
+def clean_student(value):
+    """{"first", "last", "grade"} — только если заполнено всё; иначе None."""
+    if not isinstance(value, dict):
+        return None
+    st = {"first": clean_person(value.get("first")), "last": clean_person(value.get("last")),
+          "grade": clean_grade(value.get("grade"))}
+    if len(st["first"]) < 2 or len(st["last"]) < 2 or not st["grade"]:
+        return None
+    return st
+
+
+def full_name(st):
+    return f"{st['last']} {st['first']}" if st else ""
+
+
 def who(r):
+    st = r.get("student")
+    if st:
+        return f"{full_name(st)}, {st['grade']} класс"
     name = r.get("name") or "Без имени"
     return name + (f", {r['age']} лет" if r.get("age") else "")
 
@@ -324,24 +376,29 @@ def zip_bytes(files):
     return buf.getvalue()
 
 
-def export_xlsx(items=None):
-    """Таблица: шапка жирная и закреплена, ширина столбцов по смыслу, длинный текст переносится.
-    Дата — текстом «15.10.2026 20:51», иначе Excel превращает её в число и показывает «#####»."""
-    head = ["Дата", "Имя", "Возраст", "Оценка", "Отзыв", "Что добавить"]
-    widths = [18, 16, 10, 10, 60, 50]
+def col_name(i):
+    """0 → A, 25 → Z, 26 → AA."""
+    name = ""
+    i += 1
+    while i:
+        i, rest = divmod(i - 1, 26)
+        name = chr(65 + rest) + name
+    return name
 
+
+def make_xlsx(sheet_name, head, widths, table):
+    """Таблица: шапка жирная и закреплена, ширина столбцов по смыслу, длинный текст переносится.
+    table — список строк, каждая — список значений (числа остаются числами)."""
     def cell(ref, value, style):
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return f'<c r="{ref}" s="{style}"><v>{value}</v></c>'
         return f'<c r="{ref}" s="{style}" t="inlineStr"><is><t xml:space="preserve">{x(value)}</t></is></c>'
 
-    rows = ['<row r="1">' + "".join(cell(f"{'ABCDEF'[i]}1", h, 1) for i, h in enumerate(head)) + "</row>"]
-    for n, r in enumerate(read_all() if items is None else items, start=2):
-        rating = valid_rating(r.get("rating"))
-        values = [ru_date(r.get("date")), r.get("name") or "", r.get("age") if r.get("age") else "",
-                  rating if rating is not None else "", r.get("text") or "", r.get("wish") or ""]
-        rows.append(f'<row r="{n}">' + "".join(cell(f"{'ABCDEF'[i]}{n}", v, 2) for i, v in enumerate(values)) + "</row>")
+    rows = ['<row r="1">' + "".join(cell(f"{col_name(i)}1", h, 1) for i, h in enumerate(head)) + "</row>"]
+    for n, values in enumerate(table, start=2):
+        rows.append(f'<row r="{n}">' + "".join(cell(f"{col_name(i)}{n}", v, 2) for i, v in enumerate(values)) + "</row>")
     last = max(1, len(rows))
+    end = col_name(len(head) - 1)
     cols = "".join(f'<col min="{i + 1}" max="{i + 1}" width="{w}" customWidth="1"/>' for i, w in enumerate(widths))
     sheet = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -349,7 +406,7 @@ def export_xlsx(items=None):
         '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'
         '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
         f"<cols>{cols}</cols><sheetData>{''.join(rows)}</sheetData>"
-        f'<autoFilter ref="A1:F{last}"/>'
+        f'<autoFilter ref="A1:{end}{last}"/>'
         # при печати — альбомный лист, все столбцы по ширине страницы
         '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>'
         '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>'
@@ -387,8 +444,8 @@ def export_xlsx(items=None):
          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-         '<sheets><sheet name="Отзывы" sheetId="1" r:id="rId1"/></sheets>'
-         '<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Отзывы!$A$1:$F$' + str(last) + "</definedName></definedNames>"
+         f'<sheets><sheet name="{x(sheet_name)}" sheetId="1" r:id="rId1"/></sheets>'
+         f'<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">\'{x(sheet_name)}\'!$A$1:${end}${last}</definedName></definedNames>'
          "</workbook>"),
         ("xl/_rels/workbook.xml.rels",
          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -399,6 +456,20 @@ def export_xlsx(items=None):
         ("xl/worksheets/sheet1.xml", sheet),
         ("xl/styles.xml", styles),
     ])
+
+def export_xlsx(items=None):
+    """Все отзывы (или свой список). Дата — текстом «15.10.2026 20:51», иначе Excel превращает
+    её в число и показывает «#####»."""
+    head = ["Дата", "Имя", "Фамилия", "Класс", "Возраст", "Оценка", "Отзыв", "Что добавить"]
+    widths = [18, 16, 18, 8, 10, 10, 60, 50]
+    table = []
+    for r in read_all() if items is None else items:
+        rating = valid_rating(r.get("rating"))
+        st = r.get("student") or {}
+        table.append([ru_date(r.get("date")), st.get("first") or r.get("name") or "", st.get("last", ""),
+                      st.get("grade", ""), r.get("age") if r.get("age") else "",
+                      rating if rating is not None else "", r.get("text") or "", r.get("wish") or ""])
+    return make_xlsx("Отзывы", head, widths, table)
 
 
 def export_docx(items=None):
@@ -469,6 +540,119 @@ def export_docx(items=None):
 
 # ---------- страница «Админ данные» ----------
 
+ADMIN_CSS = """:root{--ink:#070B14;--slab:#111A2B;--fog:#253552;--paper:#EAF0FA;--muted:#8E9BB8;--lamp:#FFC46B;--mint:#3EE6A8;--teal:#22D3C5;--sky:#49C3F5;--alarm:#FF6F61;
+--grad:linear-gradient(100deg,#3EE6A8,#22D3C5 50%,#49C3F5);--display:"Unbounded",system-ui,sans-serif;--body:"Golos Text",system-ui,sans-serif}
+*{box-sizing:border-box}
+html{min-height:100%;background:var(--ink)}
+body{margin:0;min-height:100vh;font:16px/1.55 var(--body);color:var(--paper)}
+/* фон — отдельным слоем во весь экран: background-attachment:fixed телефоны не умеют */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+background:radial-gradient(1100px 700px at 8% -10%,rgba(14,140,100,.38),transparent 65%),
+radial-gradient(900px 700px at 100% 10%,rgba(13,100,150,.34),transparent 65%),
+radial-gradient(900px 800px at 50% 110%,rgba(90,55,150,.28),transparent 65%),
+linear-gradient(180deg,#081320,#070B14 60%)}
+main{max-width:1080px;margin:0 auto;padding:32px max(16px,env(safe-area-inset-right)) 70px max(16px,env(safe-area-inset-left))}
+header{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+header img{width:46px;height:46px;filter:drop-shadow(0 0 14px rgba(62,230,168,.45))}
+h1{margin:0;font:800 30px/1.1 var(--display);background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{margin:4px 0 0;color:var(--muted);font-size:15px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.3fr);gap:14px;margin-bottom:22px}
+.tile{padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,rgba(22,32,52,.82),rgba(13,20,35,.82));border:1px solid rgba(120,160,210,.16)}
+.tile__k{display:block;font:700 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.tile b{font:800 34px/1 var(--display);font-variant-numeric:tabular-nums}
+.tile .stars{font-size:18px;margin-top:10px}
+.dist__row{display:grid;grid-template-columns:34px 1fr 28px;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dist__row i{height:8px;border-radius:4px;background:rgba(120,160,210,.14);overflow:hidden}
+.dist__row b{display:block;height:100%;border-radius:4px;background:var(--lamp)}
+.dist__row em{font-style:normal;text-align:right}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px}
+.btn{display:inline-flex;align-items:center;padding:11px 18px;border-radius:12px;border:0;background:var(--grad);color:var(--ink);font:700 14px var(--display);text-decoration:none;cursor:pointer}
+.btn--ghost{background:rgba(17,26,43,.9);color:var(--paper);border:1px solid #2E4366}
+.btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.6;cursor:wait}
+.hint{color:var(--muted);font-size:14px} code{background:var(--slab);padding:2px 6px;border-radius:6px}
+#sendStatus{font-size:14px} #sendStatus.ok{color:var(--mint)} #sendStatus.err{color:var(--alarm)}
+.listhead{display:flex;align-items:center;justify-content:space-between;margin:6px 0 12px;gap:10px}
+.listhead h2{margin:0;font:800 18px var(--display)} .listhead h2 .hint{font:400 14px var(--body);margin-left:6px}
+.link{background:none;border:0;color:var(--teal);font:600 14px var(--body);cursor:pointer;padding:6px;white-space:nowrap}
+.list{display:flex;flex-direction:column;gap:10px}
+.card{border-radius:16px;background:linear-gradient(180deg,rgba(22,32,52,.86),rgba(13,20,35,.86));border:1px solid rgba(120,160,210,.16);transition:border-color .2s}
+.card[open]{border-color:rgba(62,230,168,.4)}
+summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto auto 24px;align-items:center;gap:16px;padding:16px 18px;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+summary:focus-visible{outline:2px solid var(--mint);outline-offset:-2px;border-radius:16px}
+.who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who b{font-weight:600} .age{color:var(--muted);margin-left:8px}
+.rate{display:inline-flex;align-items:center;gap:8px;justify-self:start;white-space:nowrap}
+.stars{position:relative;display:inline-block;width:max-content;color:#3E4F70;letter-spacing:2px;white-space:nowrap;font-size:17px;line-height:1}
+.stars__fill{position:absolute;left:0;top:0;width:var(--v);overflow:hidden;color:var(--lamp)}
+.stars--none{color:var(--muted);font-size:13px;letter-spacing:0}
+.score{color:var(--lamp);font-variant-numeric:tabular-nums;font-weight:700}
+.date{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chev{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(120,160,210,.12)}
+.chev::before{content:"";width:7px;height:7px;border-right:2px solid var(--paper);border-bottom:2px solid var(--paper);transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+.card[open] .chev::before{transform:translateY(2px) rotate(-135deg)}
+.body{padding:2px 18px 18px;display:flex;flex-direction:column;gap:14px;border-top:1px solid rgba(120,160,210,.12);margin:0 18px;padding-left:0;padding-right:0;padding-top:14px}
+.field .label{display:block;font:700 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:6px}
+.field p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.mini{display:flex;gap:10px;flex-wrap:wrap}
+.mini a{font-size:13px;color:var(--paper);text-decoration:none;padding:7px 12px;border-radius:10px;border:1px solid #2E4366;background:rgba(7,11,20,.5)}
+.mini a:hover{border-color:var(--mint)}
+.row{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}
+.pick{display:none;width:44px;height:56px;place-items:center;cursor:pointer}
+.pick input{width:22px;height:22px;accent-color:var(--alarm);cursor:pointer}
+.selecting .row{grid-template-columns:44px minmax(0,1fr)} .selecting .pick{display:grid}
+.row.chosen .card{border-color:rgba(255,111,97,.6)}
+.del{margin-left:auto;font:600 13px var(--body);color:#FFB4AB;padding:7px 12px;border-radius:10px;border:1px solid rgba(255,111,97,.45);background:rgba(255,111,97,.08);cursor:pointer}
+.del:hover,.del.ask{background:var(--alarm);color:#2A0905;border-color:var(--alarm)}
+.btn--danger{background:rgba(255,111,97,.12);color:#FFB4AB;border:1px solid rgba(255,111,97,.5)}
+.btn--danger.ask,.btn--danger:hover{background:var(--alarm);color:#2A0905;filter:none}
+.selbar{display:none;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,111,97,.4);background:rgba(40,16,20,.6)}
+.selecting .selbar{display:flex}
+#delStatus{font-size:14px} #delStatus.err{color:var(--alarm)}
+.empty{padding:40px 20px;text-align:center;color:var(--muted);border:1px dashed #2E4366;border-radius:16px}
+@media (max-width:820px){.stats{grid-template-columns:1fr 1fr}}
+@media (max-width:620px){summary{grid-template-columns:minmax(0,1fr) 24px;gap:6px 12px}
+summary .who{grid-column:1} summary .rate{grid-column:1;grid-row:2}
+summary .date{grid-column:1;grid-row:3} summary .chev{grid-column:2;grid-row:1/span 3}
+.tile{padding:16px} .tile__k{font-size:10px;letter-spacing:.08em;line-height:1.3} .tile b{font-size:28px} h1{font-size:24px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* вкладки «Отзывы» / «Кто играл» */
+.tabs{display:flex;gap:6px;margin:-8px 0 24px;padding:5px;border-radius:14px;background:rgba(17,26,43,.7);border:1px solid rgba(120,160,210,.16);width:max-content;max-width:100%}
+.tabs a{padding:9px 16px;border-radius:10px;color:var(--muted);font:700 14px var(--display);text-decoration:none;white-space:nowrap}
+.tabs a.on{background:var(--grad);color:var(--ink)}
+.tabs a:not(.on):hover{color:var(--paper)}
+.pupil{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;color:var(--ink);background:var(--mint)}
+/* список игроков */
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.filters input,.filters select{padding:10px 12px;border-radius:12px;border:1px solid #2E4366;background:#0E1526;color:var(--paper);font:15px var(--body)}
+.filters input[type=search]{flex:1 1 220px;min-width:0}
+.filters label{display:inline-flex;gap:8px;align-items:center;color:var(--muted);font-size:14px;cursor:pointer}
+.filters input[type=checkbox]{width:18px;height:18px;accent-color:var(--mint)}
+.tablewrap{overflow-x:auto;border-radius:16px;border:1px solid rgba(120,160,210,.16);background:linear-gradient(180deg,rgba(22,32,52,.86),rgba(13,20,35,.86))}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{padding:11px 14px;text-align:left;border-bottom:1px solid rgba(120,160,210,.12);vertical-align:top}
+th{font:700 11px/1.2 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
+th[data-sort]:hover{color:var(--paper)} th.asc::after{content:" ▲"} th.desc::after{content:" ▼"}
+tr:last-child td{border-bottom:0}
+td small{display:block;color:var(--muted);font-size:13px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ok{color:var(--mint);font-weight:700;white-space:nowrap} .no{color:var(--muted)}
+.game{display:inline-block;padding:2px 8px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid #2E4366}
+.game--udar{color:var(--sky)} .game--lovushki{color:var(--mint)}
+td.pick2{width:40px;display:none} .selecting td.pick2,.selecting th.pick2{display:table-cell} th.pick2{display:none;width:40px}
+td.pick2 input{width:20px;height:20px;accent-color:var(--alarm)}
+.count{color:var(--muted);font-size:14px;margin:0 0 10px}
+@media (max-width:620px){th,td{padding:9px 10px;font-size:14px}}
+"""
+
+
+def tabs(active):
+    """Переключатель вкладок вверху обеих страниц админки."""
+    items = [("feedback", "./", "Отзывы"), ("players", "igroki", "Кто играл")]
+    return '<nav class="tabs">' + "".join(
+        f'<a href="{href}"{' class="on"' if key == active else ""}>{label}</a>' for key, href, label in items) + "</nav>"
+
+
 def admin_page():
     all_items = read_all()
     s = stats()
@@ -507,8 +691,10 @@ def admin_page():
     cards = []
     for idx in range(len(all_items) - 1, -1, -1):          # новые сверху; idx — номер строки в файле
         r = all_items[idx]
-        name = html.escape(r.get("name") or "Без имени")
-        age = f'<span class="age">{r["age"]} лет</span>' if r.get("age") else ""
+        st = r.get("student")
+        name = html.escape(full_name(st) if st else (r.get("name") or "Без имени"))
+        age = (f'<span class="pupil">{html.escape(st["grade"])} класс</span>' if st
+               else f'<span class="age">{r["age"]} лет</span>' if r.get("age") else "")
         rid = record_id(r)
         cards.append(f"""<div class="row" data-id="{rid}"><label class="pick" aria-label="Выбрать отзыв"><input type="checkbox" value="{rid}"></label><details class="card">
 <summary><span class="who"><b>{name}</b>{age}</span>{star_html(r.get('rating'))}<span class="date">{html.escape(ru_date(r.get('date')))}</span><span class="chev" aria-hidden="true"></span></summary>
@@ -532,84 +718,9 @@ def admin_page():
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/fonts.css">
 <style>
-:root{{--ink:#070B14;--slab:#111A2B;--fog:#253552;--paper:#EAF0FA;--muted:#8E9BB8;--lamp:#FFC46B;--mint:#3EE6A8;--teal:#22D3C5;--sky:#49C3F5;--alarm:#FF6F61;
---grad:linear-gradient(100deg,#3EE6A8,#22D3C5 50%,#49C3F5);--display:"Unbounded",system-ui,sans-serif;--body:"Golos Text",system-ui,sans-serif}}
-*{{box-sizing:border-box}}
-html{{min-height:100%;background:var(--ink)}}
-body{{margin:0;min-height:100vh;font:16px/1.55 var(--body);color:var(--paper)}}
-/* фон — отдельным слоем во весь экран: background-attachment:fixed телефоны не умеют */
-body::before{{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
-background:radial-gradient(1100px 700px at 8% -10%,rgba(14,140,100,.38),transparent 65%),
-radial-gradient(900px 700px at 100% 10%,rgba(13,100,150,.34),transparent 65%),
-radial-gradient(900px 800px at 50% 110%,rgba(90,55,150,.28),transparent 65%),
-linear-gradient(180deg,#081320,#070B14 60%)}}
-main{{max-width:1080px;margin:0 auto;padding:32px max(16px,env(safe-area-inset-right)) 70px max(16px,env(safe-area-inset-left))}}
-header{{display:flex;align-items:center;gap:14px;margin-bottom:26px}}
-header img{{width:46px;height:46px;filter:drop-shadow(0 0 14px rgba(62,230,168,.45))}}
-h1{{margin:0;font:800 30px/1.1 var(--display);background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}}
-header p{{margin:4px 0 0;color:var(--muted);font-size:15px}}
-.stats{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.3fr);gap:14px;margin-bottom:22px}}
-.tile{{padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,rgba(22,32,52,.82),rgba(13,20,35,.82));border:1px solid rgba(120,160,210,.16)}}
-.tile__k{{display:block;font:700 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}}
-.tile b{{font:800 34px/1 var(--display);font-variant-numeric:tabular-nums}}
-.tile .stars{{font-size:18px;margin-top:10px}}
-.dist__row{{display:grid;grid-template-columns:34px 1fr 28px;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}}
-.dist__row i{{height:8px;border-radius:4px;background:rgba(120,160,210,.14);overflow:hidden}}
-.dist__row b{{display:block;height:100%;border-radius:4px;background:var(--lamp)}}
-.dist__row em{{font-style:normal;text-align:right}}
-.bar{{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px}}
-.btn{{display:inline-flex;align-items:center;padding:11px 18px;border-radius:12px;border:0;background:var(--grad);color:var(--ink);font:700 14px var(--display);text-decoration:none;cursor:pointer}}
-.btn--ghost{{background:rgba(17,26,43,.9);color:var(--paper);border:1px solid #2E4366}}
-.btn:hover{{filter:brightness(1.08)}} .btn:disabled{{opacity:.6;cursor:wait}}
-.hint{{color:var(--muted);font-size:14px}} code{{background:var(--slab);padding:2px 6px;border-radius:6px}}
-#sendStatus{{font-size:14px}} #sendStatus.ok{{color:var(--mint)}} #sendStatus.err{{color:var(--alarm)}}
-.listhead{{display:flex;align-items:center;justify-content:space-between;margin:6px 0 12px;gap:10px}}
-.listhead h2{{margin:0;font:800 18px var(--display)}} .listhead h2 .hint{{font:400 14px var(--body);margin-left:6px}}
-.link{{background:none;border:0;color:var(--teal);font:600 14px var(--body);cursor:pointer;padding:6px;white-space:nowrap}}
-.list{{display:flex;flex-direction:column;gap:10px}}
-.card{{border-radius:16px;background:linear-gradient(180deg,rgba(22,32,52,.86),rgba(13,20,35,.86));border:1px solid rgba(120,160,210,.16);transition:border-color .2s}}
-.card[open]{{border-color:rgba(62,230,168,.4)}}
-summary{{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto auto 24px;align-items:center;gap:16px;padding:16px 18px;cursor:pointer}}
-summary::-webkit-details-marker{{display:none}}
-summary:focus-visible{{outline:2px solid var(--mint);outline-offset:-2px;border-radius:16px}}
-.who{{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.who b{{font-weight:600}} .age{{color:var(--muted);margin-left:8px}}
-.rate{{display:inline-flex;align-items:center;gap:8px;justify-self:start;white-space:nowrap}}
-.stars{{position:relative;display:inline-block;width:max-content;color:#3E4F70;letter-spacing:2px;white-space:nowrap;font-size:17px;line-height:1}}
-.stars__fill{{position:absolute;left:0;top:0;width:var(--v);overflow:hidden;color:var(--lamp)}}
-.stars--none{{color:var(--muted);font-size:13px;letter-spacing:0}}
-.score{{color:var(--lamp);font-variant-numeric:tabular-nums;font-weight:700}}
-.date{{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}}
-.chev{{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(120,160,210,.12)}}
-.chev::before{{content:"";width:7px;height:7px;border-right:2px solid var(--paper);border-bottom:2px solid var(--paper);transform:translateY(-2px) rotate(45deg);transition:transform .2s}}
-.card[open] .chev::before{{transform:translateY(2px) rotate(-135deg)}}
-.body{{padding:2px 18px 18px;display:flex;flex-direction:column;gap:14px;border-top:1px solid rgba(120,160,210,.12);margin:0 18px;padding-left:0;padding-right:0;padding-top:14px}}
-.field .label{{display:block;font:700 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:6px}}
-.field p{{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}}
-.mini{{display:flex;gap:10px;flex-wrap:wrap}}
-.mini a{{font-size:13px;color:var(--paper);text-decoration:none;padding:7px 12px;border-radius:10px;border:1px solid #2E4366;background:rgba(7,11,20,.5)}}
-.mini a:hover{{border-color:var(--mint)}}
-.row{{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}}
-.pick{{display:none;width:44px;height:56px;place-items:center;cursor:pointer}}
-.pick input{{width:22px;height:22px;accent-color:var(--alarm);cursor:pointer}}
-.selecting .row{{grid-template-columns:44px minmax(0,1fr)}} .selecting .pick{{display:grid}}
-.row.chosen .card{{border-color:rgba(255,111,97,.6)}}
-.del{{margin-left:auto;font:600 13px var(--body);color:#FFB4AB;padding:7px 12px;border-radius:10px;border:1px solid rgba(255,111,97,.45);background:rgba(255,111,97,.08);cursor:pointer}}
-.del:hover,.del.ask{{background:var(--alarm);color:#2A0905;border-color:var(--alarm)}}
-.btn--danger{{background:rgba(255,111,97,.12);color:#FFB4AB;border:1px solid rgba(255,111,97,.5)}}
-.btn--danger.ask,.btn--danger:hover{{background:var(--alarm);color:#2A0905;filter:none}}
-.selbar{{display:none;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,111,97,.4);background:rgba(40,16,20,.6)}}
-.selecting .selbar{{display:flex}}
-#delStatus{{font-size:14px}} #delStatus.err{{color:var(--alarm)}}
-.empty{{padding:40px 20px;text-align:center;color:var(--muted);border:1px dashed #2E4366;border-radius:16px}}
-@media (max-width:820px){{.stats{{grid-template-columns:1fr 1fr}}}}
-@media (max-width:620px){{summary{{grid-template-columns:minmax(0,1fr) 24px;gap:6px 12px}}
-summary .who{{grid-column:1}} summary .rate{{grid-column:1;grid-row:2}}
-summary .date{{grid-column:1;grid-row:3}} summary .chev{{grid-column:2;grid-row:1/span 3}}
-.tile{{padding:16px}} .tile__k{{font-size:10px;letter-spacing:.08em;line-height:1.3}} .tile b{{font-size:28px}} h1{{font-size:24px}}}}
-@media (prefers-reduced-motion:reduce){{*{{transition:none!important}}}}
-</style></head><body><main>
+{ADMIN_CSS}</style></head><body><main>
 <header><img src="/favicon.svg" alt=""><div><h1>Админ данные</h1><p>Отзывы об игре «Восемь ловушек»</p></div></header>
+{tabs("feedback")}
 
 <section class="stats">
 <div class="tile"><span class="tile__k">Всего отзывов</span><b>{len(all_items)}</b></div>
@@ -700,6 +811,283 @@ if (pm) {{
 </body></html>"""
 
 
+# ---------- «Кто играл»: аккаунты из обеих игр ----------
+# Игра присылает снимок аккаунта целиком (ник, ученик ли, сколько прошёл, есть ли сертификат),
+# поэтому повторная отправка ничего не портит: запись просто обновляется.
+# Ключ — игра + случайная метка компьютера + номер аккаунта в этом браузере.
+
+players_lock = threading.Lock()
+
+
+def read_players():
+    try:
+        with open(PLAYERS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_players(data):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = PLAYERS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+    same_owner(tmp)
+    os.replace(tmp, PLAYERS_FILE)
+
+
+def small_int(value, lo=0, hi=1000):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    value = int(value)
+    return value if lo <= value <= hi else None
+
+
+def clean_progress(game, value):
+    """Только известные поля и в разумных пределах — что-то другое в базу не попадёт."""
+    value = value if isinstance(value, dict) else {}
+    if game == "lovushki":
+        out = {"finished": small_int(value.get("finished")) or 0}
+        best = value.get("best") if isinstance(value.get("best"), dict) else {}
+        safe, total = small_int(best.get("safe"), 0, 100), small_int(best.get("total"), 1, 100)
+        if safe is not None and total and safe <= total:
+            out["best"] = {"safe": safe, "total": total, "level": clean_text(best.get("level"), 20).replace("\n", " ")}
+        return out
+    out = {"levels": small_int(value.get("levels"), 0, 50) or 0,
+           "of": small_int(value.get("of"), 1, 50) or 1,
+           "stars": small_int(value.get("stars"), 0, 150) or 0}
+    out["levels"] = min(out["levels"], out["of"])
+    return out
+
+
+def progress_text(p):
+    pr = p.get("progress") or {}
+    if p.get("game") == "lovushki":
+        best = pr.get("best")
+        if not pr.get("finished"):
+            return "ещё не прошёл район"
+        times = pr["finished"]
+        text = f"прошёл {times} раз" + ("а" if times % 10 in (2, 3, 4) and times % 100 not in (12, 13, 14) else "")
+        if best:
+            text += f" · лучший {best['safe']} из {best['total']}" + (f" ({best['level']})" if best.get("level") else "")
+        return text
+    return f"уровней {pr.get('levels', 0)} из {pr.get('of', 1)} · ★ {pr.get('stars', 0)}"
+
+
+def save_player(data, now=None):
+    """Обновляет запись игрока. Возвращает False, если запрос не похож на игру."""
+    game = data.get("game")
+    if game not in GAMES:
+        return False
+    client = re.sub(r"[^A-Za-z0-9-]", "", str(data.get("client") or ""))[:40]
+    pid = re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("pid") or ""))[:40]
+    nick = clean_text(data.get("nick"), 30).replace("\n", " ")
+    if len(client) < 8 or not pid or not nick:
+        return False
+    key_ = hashlib.sha1(f"{game}:{client}:{pid}".encode("utf-8")).hexdigest()[:16]
+    stamp = (now or datetime.now(TZ)).strftime("%Y-%m-%d %H:%M")
+    with players_lock:
+        players = read_players()
+        old = players.get(key_)
+        if old is None and len(players) >= MAX_PLAYERS:
+            return False
+        rec = dict(old or {"first_seen": stamp})
+        rec.update({"game": game, "nick": nick, "last_seen": stamp,
+                    "student": clean_student(data.get("student")),
+                    "progress": clean_progress(game, data.get("progress"))})
+        # сертификат: запоминаем первый раз и больше не снимаем
+        if data.get("cert") is True and not rec.get("cert"):
+            rec["cert"] = stamp
+        players[key_] = rec
+        write_players(players)
+    return True
+
+
+def player_rows(game=None, grade=None):
+    """Список для страницы и Excel: свежие сверху."""
+    items = []
+    for k, p in read_players().items():
+        if not isinstance(p, dict) or p.get("game") not in GAMES:
+            continue
+        st = p.get("student") or {}
+        if game and p["game"] != game:
+            continue
+        if grade and st.get("grade", "").lower() != grade.lower():
+            continue
+        items.append(dict(p, id=k))
+    items.sort(key=lambda p: p.get("last_seen", ""), reverse=True)
+    return items
+
+
+def export_players_xlsx(game=None, grade=None):
+    head = ["Фамилия", "Имя", "Класс", "Ник в игре", "Игра", "Результат", "Сертификат", "Первый раз", "Последний раз"]
+    widths = [18, 16, 8, 16, 18, 40, 18, 18, 18]
+    table = []
+    for p in player_rows(game, grade):
+        st = p.get("student") or {}
+        table.append([st.get("last", ""), st.get("first", ""), st.get("grade", ""), p.get("nick", ""),
+                      GAMES[p["game"]], progress_text(p), ru_date(p["cert"]) if p.get("cert") else "нет",
+                      ru_date(p.get("first_seen")), ru_date(p.get("last_seen"))])
+    return make_xlsx("Кто играл", head, widths, table)
+
+
+def delete_players(ids):
+    with players_lock:
+        players = read_players()
+        gone = [(k, players.pop(k)) for k in list(players) if k in ids]
+        if not gone:
+            return 0
+        os.makedirs(DATA_DIR, exist_ok=True)
+        stamp = datetime.now(TZ).strftime("%Y-%m-%d %H:%M")
+        with open(PLAYERS_TRASH, "a", encoding="utf-8") as f:
+            for k, p in gone:
+                f.write(json.dumps(dict(p, id=k, deleted=stamp), ensure_ascii=False) + "\n")
+        same_owner(PLAYERS_TRASH)
+        write_players(players)
+        return len(gone)
+
+
+def grade_key(g):
+    m = re.match(r"(\d+)(.*)", g or "")
+    return (int(m.group(1)), m.group(2)) if m else (99, g or "")
+
+
+def players_page():
+    items = player_rows()
+    now = datetime.now(TZ)
+    pupils = [p for p in items if p.get("student")]
+    certs = [p for p in items if p.get("cert")]
+    week = 0
+    for p in items:
+        try:
+            if now - datetime.strptime(p.get("last_seen", ""), "%Y-%m-%d %H:%M").replace(tzinfo=TZ) <= timedelta(days=7):
+                week += 1
+        except ValueError:
+            pass
+    grades = sorted({p["student"]["grade"] for p in pupils}, key=grade_key)
+    rows = []
+    for p in items:
+        st = p.get("student") or {}
+        name = (f'<b>{html.escape(full_name(st))}</b>' if st else '<span class="no">не ученик</span>')
+        cert = (f'<span class="ok">✓ есть</span><small>{html.escape(ru_date(p["cert"]))}</small>' if p.get("cert")
+                else '<span class="no">нет</span>')
+        search = " ".join([st.get("last", ""), st.get("first", ""), p.get("nick", ""), st.get("grade", "")]).lower()
+        rows.append(
+            f'<tr data-id="{p["id"]}" data-game="{p["game"]}" data-grade="{html.escape(st.get("grade", ""))}" '
+            f'data-pupil="{1 if st else 0}" data-q="{html.escape(search)}" data-name="{html.escape(full_name(st).lower() or "я" + p.get("nick", "").lower())}" '
+            f'data-seen="{html.escape(p.get("last_seen", ""))}" data-cert="{1 if p.get("cert") else 0}">'
+            f'<td class="pick2"><input type="checkbox" value="{p["id"]}" aria-label="Выбрать"></td>'
+            f'<td>{name}</td><td class="num">{html.escape(st.get("grade", "")) or "—"}</td>'
+            f'<td>{html.escape(p.get("nick", ""))}</td>'
+            f'<td><span class="game game--{p["game"]}">{GAMES[p["game"]]}</span></td>'
+            f'<td>{html.escape(progress_text(p))}</td><td>{cert}</td>'
+            f'<td class="num">{html.escape(ru_date(p.get("last_seen")))}<small>с {html.escape(ru_date(p.get("first_seen")))}</small></td></tr>')
+    grade_opts = "".join(f'<option value="{html.escape(g)}">{html.escape(g)}</option>' for g in grades)
+    table = (f'''<div class="tablewrap"><table><thead><tr><th class="pick2"></th><th data-sort="name">Ученик</th><th data-sort="grade">Класс</th>
+<th>Ник</th><th>Игра</th><th>Результат</th><th data-sort="cert">Сертификат</th><th data-sort="seen" class="desc">Когда играл</th></tr></thead>
+<tbody id="rows">{"".join(rows)}</tbody></table></div>''' if items else
+             '<div class="empty">Пока никто не играл. Аккаунт появится здесь, как только его создадут в любой из двух игр.</div>')
+    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>Кто играл — Восемь ловушек</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/fonts.css">
+<style>
+{ADMIN_CSS}</style></head><body><main>
+<header><img src="/favicon.svg" alt=""><div><h1>Админ данные</h1><p>Кто играл в «Восемь ловушек» и «Двойной удар»</p></div></header>
+{tabs("players")}
+
+<section class="stats">
+<div class="tile"><span class="tile__k">Всего аккаунтов</span><b>{len(items)}</b></div>
+<div class="tile"><span class="tile__k">Ученики</span><b>{len(pupils)}</b></div>
+<div class="tile"><span class="tile__k">С сертификатом</span><b>{len(certs)}</b></div>
+<div class="tile"><span class="tile__k">Играли за 7 дней</span><b>{week}</b></div>
+</section>
+
+<div class="filters">
+<input type="search" id="q" placeholder="Фамилия, имя или ник" aria-label="Поиск">
+<select id="fGame" aria-label="Игра"><option value="">Обе игры</option><option value="lovushki">Восемь ловушек</option><option value="udar">Двойной удар</option></select>
+<select id="fGrade" aria-label="Класс"><option value="">Все классы</option>{grade_opts}</select>
+<label><input type="checkbox" id="fPupil"> только ученики</label>
+<label><input type="checkbox" id="fCert"> только с сертификатом</label>
+</div>
+<div class="bar"><a class="btn" id="xlsx" href="igroki.xlsx">Скачать список — Excel</a>
+{'<button class="link" id="pickMode" type="button">Выбрать для удаления</button>' if items else ''}</div>
+<div id="listWrap">
+<div class="selbar"><button class="btn btn--danger" id="delPicked" type="button" disabled>Убрать выбранных (0)</button>
+<button class="link" id="pickCancel" type="button">Отмена</button><span id="delStatus" role="status"></span></div>
+<p class="count" id="count"></p>
+{table}
+</div>
+</main>
+<script>
+var rows = Array.prototype.slice.call(document.querySelectorAll("#rows tr"));
+var q = document.getElementById("q"), fg = document.getElementById("fGame"), fk = document.getElementById("fGrade"),
+    fp = document.getElementById("fPupil"), fc = document.getElementById("fCert"), cnt = document.getElementById("count"),
+    xl = document.getElementById("xlsx");
+function apply() {{
+  var words = q.value.toLowerCase().split(/\\s+/).filter(Boolean), n = 0;
+  rows.forEach(function (r) {{
+    var ok = (!fg.value || r.dataset.game === fg.value) && (!fk.value || r.dataset.grade === fk.value) &&
+      (!fp.checked || r.dataset.pupil === "1") && (!fc.checked || r.dataset.cert === "1") &&
+      words.every(function (w) {{ return r.dataset.q.indexOf(w) >= 0; }});
+    r.hidden = !ok; if (ok) n++;
+  }});
+  if (cnt) cnt.textContent = rows.length ? "Показано: " + n + " из " + rows.length : "";
+  var p = [];
+  if (fg.value) p.push("game=" + encodeURIComponent(fg.value));
+  if (fk.value) p.push("klass=" + encodeURIComponent(fk.value));
+  xl.href = "igroki.xlsx" + (p.length ? "?" + p.join("&") : "");
+  xl.textContent = fk.value ? "Скачать " + fk.value + " — Excel" : "Скачать список — Excel";
+}}
+[q, fg, fk, fp, fc].forEach(function (e) {{ e.addEventListener("input", apply); e.addEventListener("change", apply); }});
+apply();
+
+/* сортировка по нажатию на заголовок */
+function gkey(g) {{ var m = /^(\\d+)(.*)$/.exec(g || ""); return m ? ("0" + m[1]).slice(-2) + m[2] : "99"; }}
+document.querySelectorAll("th[data-sort]").forEach(function (th) {{
+  th.addEventListener("click", function () {{
+    var k = th.dataset.sort, asc = !th.classList.contains("asc");
+    document.querySelectorAll("th[data-sort]").forEach(function (o) {{ o.classList.remove("asc", "desc"); }});
+    th.classList.add(asc ? "asc" : "desc");
+    rows.sort(function (a, b) {{
+      var x = a.dataset[k], y = b.dataset[k];
+      if (k === "grade") {{ x = gkey(x) + a.dataset.name; y = gkey(y) + b.dataset.name; }}
+      return (x < y ? -1 : x > y ? 1 : 0) * (asc ? 1 : -1);
+    }});
+    var body = document.getElementById("rows");
+    rows.forEach(function (r) {{ body.appendChild(r); }});
+  }});
+}});
+
+/* удаление: выбрать строки и нажать дважды */
+var wrap = document.getElementById("listWrap"), ds = document.getElementById("delStatus"), pm = document.getElementById("pickMode");
+function picked() {{ return Array.prototype.map.call(document.querySelectorAll(".pick2 input:checked"), function (i) {{ return i.value; }}); }}
+function syncPicked() {{ var n = picked().length, dp = document.getElementById("delPicked"); dp.textContent = "Убрать выбранных (" + n + ")"; dp.disabled = !n; }}
+if (pm) {{
+  pm.addEventListener("click", function () {{ wrap.classList.toggle("selecting"); }});
+  document.getElementById("pickCancel").addEventListener("click", function () {{
+    wrap.classList.remove("selecting"); document.querySelectorAll(".pick2 input").forEach(function (i) {{ i.checked = false; }}); syncPicked();
+  }});
+  wrap.addEventListener("change", syncPicked);
+  var dp = document.getElementById("delPicked");
+  dp.addEventListener("click", function () {{
+    if (!dp.classList.contains("ask")) {{
+      dp.classList.add("ask"); dp.textContent = "Точно убрать " + picked().length + "?";
+      setTimeout(function () {{ dp.classList.remove("ask"); syncPicked(); }}, 4000); return;
+    }}
+    dp.disabled = true;
+    fetch("igroki/delete", {{ method: "POST", headers: {{ "X-Admin-Action": "delete", "Content-Type": "application/json" }}, body: JSON.stringify({{ ids: picked() }}) }})
+      .then(function (r) {{ return r.json(); }})
+      .then(function (d) {{ if (d.ok) location.reload(); else throw new Error(d.error || ""); }})
+      .catch(function (e) {{ dp.disabled = false; ds.className = "err"; ds.textContent = e.message || "Не получилось убрать."; }});
+  }});
+}}
+</script>
+</body></html>"""
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "lovushki-feedback"
 
@@ -723,12 +1111,38 @@ class Handler(BaseHTTPRequestHandler):
     def reply(self, code, payload):
         self.send(code, json.dumps(payload, ensure_ascii=False), "application/json; charset=utf-8")
 
+    def read_json(self, limit):
+        """Тело запроса как словарь; None — если пусто, слишком велико или не JSON."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        if length <= 0 or length > limit:
+            return None
+        try:
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
+
     def do_GET(self):
         path = self.path.split("?")[0]
         if path == "/api/feedback/stats":
             self.reply(200, stats())
         elif path in ("/admin", "/admin/"):
             self.send(200, admin_page(), "text/html; charset=utf-8")
+        elif path == "/admin/igroki":
+            self.send(200, players_page(), "text/html; charset=utf-8")
+        elif path == "/admin/igroki.xlsx":
+            query = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            game = (query.get("game") or [""])[0]
+            grade = clean_grade((query.get("klass") or [""])[0])
+            data = export_players_xlsx(game if game in GAMES else None, grade or None)
+            name = "igroki-" + (grade + "-" if grade else "") + datetime.now(TZ).strftime("%Y-%m-%d") + ".xlsx"
+            # имя файла с буквой класса — по-русски через filename*, латиницей — запасное
+            ascii_name = re.sub(r"[^A-Za-z0-9.-]", "", name.replace(grade + "-", "")) if grade else name
+            self.send_bytes(200, data, XLSX_MIME,
+                            {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"})
         elif re.fullmatch(r"/admin/otzyv/\d+\.(docx|xlsx)", path):
             idx, ext = path.rsplit("/", 1)[1].split(".")
             items = read_all()
@@ -755,6 +1169,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.split("?")[0] == "/admin/delete":
             self.delete()
+            return
+        if self.path.split("?")[0] == "/admin/igroki/delete":
+            if self.headers.get("X-Admin-Action") != "delete":
+                self.reply(403, {"ok": False, "error": "Запрос не со страницы «Админ данные»."})
+                return
+            data = self.read_json(256 * 1024) or {}
+            ids = {str(v) for v in (data.get("ids") or []) if isinstance(v, str)}
+            if not ids:
+                self.reply(400, {"ok": False, "error": "Никто не выбран."})
+                return
+            self.reply(200, {"ok": True, "removed": delete_players(ids)})
+            return
+        if self.path.split("?")[0] == "/api/players":
+            data = self.read_json(MAX_BODY)
+            if data is None:
+                self.reply(400, {"ok": False, "error": "json"})
+                return
+            try:
+                ok = save_player(data)
+            except OSError as e:
+                print("Игрок не записался:", e, file=sys.stderr, flush=True)
+                self.reply(500, {"ok": False, "error": "write"})
+                return
+            self.reply(200 if ok else 400, {"ok": ok})
             return
         if self.path.split("?")[0] != "/api/feedback":
             self.reply(404, {"ok": False})
@@ -805,14 +1243,17 @@ class Handler(BaseHTTPRequestHandler):
         if age is not None and not 3 <= age <= 120:
             age = None
 
+        student = clean_student(data.get("student"))
         record = {
             "date": datetime.now(TZ).strftime("%Y-%m-%d %H:%M"),
-            "name": clean_text(data.get("name"), MAX_NAME).replace("\n", " "),
-            "age": age,
+            "name": student["first"] if student else clean_text(data.get("name"), MAX_NAME).replace("\n", " "),
+            "age": None if student else age,
             "rating": rating,
             "text": text,
             "wish": wish,
         }
+        if student:
+            record["student"] = student
         try:
             with lock:
                 os.makedirs(DATA_DIR, exist_ok=True)
@@ -901,6 +1342,13 @@ def print_list():
 if __name__ == "__main__":
     if "--list" in sys.argv:
         print_list()
+    elif "--players" in sys.argv:
+        rows = player_rows()
+        for p in rows:
+            st = p.get("student")
+            print(f"{ru_date(p.get('last_seen'))}  {GAMES[p['game']]:<15} {full_name(st) + ', ' + st['grade'] if st else '(не ученик)':<32} "
+                  f"ник {p.get('nick')}  ·  {progress_text(p)}" + ("  ·  сертификат" if p.get("cert") else ""))
+        print(f"Всего аккаунтов: {len(rows)}")
     elif "--clear" in sys.argv:
         n = delete_records(lambda i, r: False)
         print(f"Удалено отзывов: {n}. Они отложены в {TRASH_FILE}.")

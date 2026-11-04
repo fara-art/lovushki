@@ -605,6 +605,14 @@
   .fb input:focus, .fb textarea:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px rgba(62, 230, 168, .18); }
   .fb__trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   .fb__note { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .fb__pupil { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--fog); background: rgba(7, 11, 20, .55); color: var(--paper); font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
+  .fb__pupil:hover, .fb__pupil[aria-pressed="true"] { border-color: var(--mint); }
+  .fb__check { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--muted); display: grid; place-items: center; flex: none; }
+  .fb__pupil[aria-pressed="true"] .fb__check { background: var(--grad); border-color: transparent; }
+  .fb__pupil[aria-pressed="true"] .fb__check::after { content: ""; width: 9px; height: 5px; border-left: 2.5px solid var(--ink); border-bottom: 2.5px solid var(--ink); transform: translateY(-1px) rotate(-45deg); }
+  .fb__pupilbox { display: grid; grid-template-columns: 1fr 1fr 96px; gap: 12px; }
+  .fb__pupilbox[hidden], .fb__pair[hidden] { display: none; }
+  @media (max-width: 520px) { .fb__pupilbox { grid-template-columns: 1fr 1fr; } .fb__block--grade { grid-column: 1 / -1; } }
   .fb__status { margin: 0; min-height: 1.4em; font-size: 16px; color: var(--muted); }
   .fb__status.is-error { color: var(--alarm); }
   /* кулдаун: кнопка приглушена и показывает, сколько ждать */
@@ -1098,7 +1106,7 @@
       </div>
     </div>
 
-    <div class="fb__pair">
+    <div class="fb__pair" id="fbPlain">
       <div class="fb__block">
         <label class="fb__label" for="fbName">Имя</label>
         <input type="text" id="fbName" maxlength="60" autocomplete="given-name" placeholder="Например: Маша">
@@ -1106,6 +1114,23 @@
       <div class="fb__block fb__block--age">
         <label class="fb__label" for="fbAge">Возраст</label>
         <input type="number" id="fbAge" min="3" max="120" inputmode="numeric" placeholder="лет">
+      </div>
+    </div>
+
+    <!-- «Я ученик»: вместо имени и возраста — имя, фамилия и класс, для школ -->
+    <button type="button" class="fb__pupil" id="fbPupil" aria-pressed="false" aria-controls="fbPupilBox"><span class="fb__check" aria-hidden="true"></span>Я ученик</button>
+    <div class="fb__pupilbox" id="fbPupilBox" hidden>
+      <div class="fb__block">
+        <label class="fb__label" for="fbFirst">Имя</label>
+        <input type="text" id="fbFirst" maxlength="30" autocomplete="given-name" placeholder="Маша">
+      </div>
+      <div class="fb__block">
+        <label class="fb__label" for="fbLast">Фамилия</label>
+        <input type="text" id="fbLast" maxlength="30" autocomplete="family-name" placeholder="Иванова">
+      </div>
+      <div class="fb__block fb__block--grade">
+        <label class="fb__label" for="fbGrade">Класс</label>
+        <input type="text" id="fbGrade" maxlength="10" autocomplete="off" placeholder="7Б">
       </div>
     </div>
 
@@ -1122,7 +1147,7 @@
     <!-- ловушка для ботов: человек это поле не видит -->
     <input type="text" class="fb__trap" id="fbWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
 
-    <p class="fb__note">Имя и возраст — по желанию. Не пиши фамилию, телефон и адрес. Отзыв прочитают только авторы игры.</p>
+    <p class="fb__note" id="fbNote">Имя и возраст — по желанию. Не пиши фамилию, телефон и адрес. Отзыв прочитают только авторы игры.</p>
     <button class="btn btn--go" type="submit" id="fbSend">Отправить отзыв</button>
     <p class="fb__status" id="fbStatus" role="status"></p>
   </form>
@@ -1264,6 +1289,28 @@
       var status = document.getElementById("fbStatus");
       var send = document.getElementById("fbSend");
       rating = 0;
+
+      // «Я ученик»: прячем имя с возрастом, показываем имя, фамилию и класс
+      var pupilBtn = document.getElementById("fbPupil"), pupilBox = document.getElementById("fbPupilBox");
+      var noteEl = document.getElementById("fbNote"), noteText = noteEl.textContent;
+      pupilBtn.addEventListener("click", function () {
+        var on = pupilBtn.getAttribute("aria-pressed") !== "true";
+        pupilBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        pupilBox.hidden = !on;
+        document.getElementById("fbPlain").hidden = on;
+        noteEl.textContent = on
+          ? "Имя, фамилию и класс увидят только авторы игры и твой учитель. Телефон и адрес не пиши."
+          : noteText;
+        if (on) document.getElementById("fbFirst").focus();
+      });
+      function pupilName(v) {
+        v = String(v || "").replace(/[^A-Za-zА-Яа-яЁё' -]/g, "").replace(/\s+/g, " ").replace(/^[ '-]+|[ '-]+$/g, "");
+        return v.split("-").map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join("-");
+      }
+      function pupilGrade(v) {
+        var m = /^\s*(\d{1,2})\s*[-–]?\s*([А-ЯЁа-яёA-Za-z]?)\s*(класс|кл\.?)?\s*$/i.exec(String(v || ""));
+        return m && +m[1] >= 1 && +m[1] <= 11 ? m[1] + m[2].toUpperCase() : "";
+      }
       // n — от 0 до 5 с шагом 0,5: 4,5 — четыре полные звезды и половинка пятой
       function paintStars(n, preview) {
         starsBox.classList.toggle("is-preview", !!preview && n !== rating);
@@ -1329,6 +1376,14 @@
         var text = document.getElementById("fbText").value.trim();
         var wish = document.getElementById("fbWish").value.trim();
         if (!text && !wish) { say("Напиши хотя бы пару слов — в отзыве или в том, что добавить.", "error"); return; }
+        var student = null;
+        if (pupilBtn.getAttribute("aria-pressed") === "true") {
+          student = { first: pupilName(document.getElementById("fbFirst").value), last: pupilName(document.getElementById("fbLast").value),
+                      grade: pupilGrade(document.getElementById("fbGrade").value) };
+          if (student.first.length < 2) { say("Напиши имя — хотя бы две буквы.", "error"); document.getElementById("fbFirst").focus(); return; }
+          if (student.last.length < 2) { say("Напиши фамилию — хотя бы две буквы.", "error"); document.getElementById("fbLast").focus(); return; }
+          if (!student.grade) { say("Напиши класс цифрой и буквой, например 7Б.", "error"); document.getElementById("fbGrade").focus(); return; }
+        }
         if (waitLeft()) { syncWait(); say("Слишком много отзывов с этого компьютера подряд. Следующий можно через " + minutes(waitLeft()) + " мин.", "error"); return; }
         send.disabled = true;
         say("Отправляю…");
@@ -1360,8 +1415,9 @@
         };
         xhr.send(JSON.stringify({
           rating: rating || null,
-          name: document.getElementById("fbName").value,
-          age: document.getElementById("fbAge").value,
+          name: student ? student.first : document.getElementById("fbName").value,
+          age: student ? "" : document.getElementById("fbAge").value,
+          student: student,
           text: text,
           wish: wish,
           website: document.getElementById("fbWebsite").value,

@@ -413,6 +413,35 @@
   .newrow { display: flex; gap: 10px; }
   .newrow input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid #2E4366; background: #0E1526; color: var(--paper); font: 16px var(--body); }
   .newrow input:focus { outline: none; border-color: var(--mint); }
+  /* «Я ученик»: переключатель и три поля под ником */
+  .pupil-toggle { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid #2E4366; background: #0E1526; color: var(--paper); font: 600 15px var(--body); cursor: pointer; }
+  .pupil-toggle:hover, .pupil-toggle[aria-pressed="true"] { border-color: var(--mint); }
+  .pupil-toggle__box { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--muted); display: grid; place-items: center; flex: none; }
+  .pupil-toggle[aria-pressed="true"] .pupil-toggle__box { background: var(--grad); border-color: transparent; }
+  .pupil-toggle[aria-pressed="true"] .pupil-toggle__box::after { content: ""; width: 9px; height: 5px; border-left: 2.5px solid var(--ink); border-bottom: 2.5px solid var(--ink); transform: translateY(-1px) rotate(-45deg); }
+  .pupil-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .pupil-form[hidden] { display: none; }
+  .pupil-form input { min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid #2E4366; background: #0E1526; color: var(--paper); font: 16px var(--body); }
+  .pupil-form input:focus { outline: none; border-color: var(--mint); }
+  .pupil-form #pGrade, .pupil-form .hint { grid-column: 1 / -1; }
+  .pupil-form .hint { margin: 0; }
+  @media (max-width: 480px) { .pupil-form { grid-template-columns: 1fr; } }
+  .sess__pick .pupil-tag { display: block; color: var(--mint); font-size: 13px; }
+  /* сертификат */
+  .modal--wide { width: min(860px, 100%); }
+  .cert__img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid #2E4366; background: #0B1120; aspect-ratio: 1600 / 1130; }
+  .certcall { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; margin: 14px 0; padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(62, 230, 168, .45); background: rgba(62, 230, 168, .08); }
+  .certcall[hidden] { display: none; }
+  .certcall b { font: 800 16px var(--display); } .certcall span { color: #C9D4EA; font-size: 14px; grid-column: 1; }
+  .certcall .btn { grid-column: 2; grid-row: 1 / span 2; }
+  .lvl.certlvl { border-color: rgba(62, 230, 168, .5); background: rgba(62, 230, 168, .08); }
+  /* на бумагу идёт только сертификат, без игры вокруг */
+  @media print {
+    @page { size: A4 landscape; margin: 0; }
+    body * { visibility: hidden !important; }
+    #certImg, #certImg * { visibility: visible !important; }
+    #certImg { position: fixed; inset: 0; width: 100vw; height: auto; border: 0; border-radius: 0; }
+  }
   .toast {
     position: fixed; left: 50%; bottom: 28px; z-index: 40; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
     padding: 12px 18px; border-radius: 14px; background: #1E2A44; border: 1px solid var(--line); font-size: 14px; transition: .25s;
@@ -563,6 +592,13 @@
       <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта" autocomplete="off">
       <button class="btn" type="button" id="newSession">Создать</button>
     </div>
+    <button type="button" class="pupil-toggle" id="pupilToggle" aria-pressed="false" aria-controls="pupilBox"><span class="pupil-toggle__box" aria-hidden="true"></span>Я ученик</button>
+    <div class="pupil-form" id="pupilBox" hidden>
+      <input type="text" id="pFirst" maxlength="30" placeholder="Имя" aria-label="Имя" autocomplete="given-name">
+      <input type="text" id="pLast" maxlength="30" placeholder="Фамилия" aria-label="Фамилия" autocomplete="family-name">
+      <input type="text" id="pGrade" maxlength="10" placeholder="Класс, например 7Б" aria-label="Класс" autocomplete="off">
+      <p class="hint">Имя, фамилию и класс увидит только учитель — так он найдёт тебя в списке тех, кто прошёл игру. Ник можно не придумывать.</p>
+    </div>
     <p class="hint" id="nameNote"></p>
     <div class="row" id="profBackRow"><button class="btn btn--ghost" type="button" id="profBack">Назад</button></div>
   </div>
@@ -586,7 +622,23 @@
     <p id="dbSummary"></p>
     <div id="dbChats"></div>
     <div class="lesson"><b>Что запомнить</b><p id="dbLesson"></p></div>
+    <div class="certcall" id="dbCertRow" hidden><b>Все уровни пройдены!</b><span>Забери свой сертификат — его можно скачать или распечатать.</span><button class="btn" type="button" id="dbCert">Сертификат</button></div>
     <div class="row"><button class="btn" type="button" id="dbNext">Следующий уровень</button><button class="btn btn--ghost" type="button" id="dbRetry">Пройти ещё раз</button><button class="btn btn--ghost" type="button" id="dbLevels">Уровни</button></div>
+  </div>
+</div>
+
+<div class="layer" id="certLayer" hidden>
+  <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="certTitle">
+    <div class="kicker">Все уровни пройдены</div>
+    <h2 id="certTitle">Твой сертификат</h2>
+    <label class="kicker" for="certName" style="display:block;margin-top:14px">Имя на сертификате</label>
+    <div class="newrow"><input type="text" id="certName" maxlength="28" placeholder="Имя и фамилия" autocomplete="off"></div>
+    <div class="row" style="margin:14px 0">
+      <a class="btn" id="certSave" download="dvoynoy-udar-sertifikat.png">Скачать картинкой</a>
+      <button class="btn btn--ghost" type="button" id="certPrint">Распечатать</button>
+      <button class="btn btn--ghost" type="button" id="certClose">Закрыть</button>
+    </div>
+    <img class="cert__img" id="certImg" alt="Сертификат о прохождении игры «Двойной удар»">
   </div>
 </div>
 
@@ -1227,6 +1279,114 @@ function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&
 /* ============================================================
    Состояние, сохранение
    ============================================================ */
+/* ---------- ученик и список «Кто играл» (общий код обеих игр) ----------
+   «Я ученик» — по желанию: имя, фамилия и класс, чтобы учитель нашёл ребёнка в списке.
+   Игра шлёт на сервер снимок аккаунта целиком: ник, ученик ли, сколько пройдено, есть ли
+   сертификат. Нет интернета — снимок ждёт в браузере и уходит при следующей возможности. */
+var Pupil = (function () {
+  var QUEUE = "lovushki.reports", SENT = "lovushki.sent", CLIENT = "lovushki.fbClient";
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function put(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* приватный режим */ } }
+  function load(k) { try { return JSON.parse(get(k) || "{}") || {}; } catch (e) { return {}; } }
+
+  function cleanName(v) {
+    v = String(v || "").replace(/[^A-Za-zА-Яа-яЁё' -]/g, "").replace(/\s+/g, " ").replace(/^[ '-]+|[ '-]+$/g, "");
+    return v.split("-").map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join("-");
+  }
+  // «7 б», «7-Б», «11а класс» → «7Б», «11А»
+  function cleanGrade(v) {
+    var m = /^\s*(\d{1,2})\s*[-–]?\s*([А-ЯЁа-яёA-Za-z]?)\s*(класс|кл\.?)?\s*$/i.exec(String(v || ""));
+    if (!m || +m[1] < 1 || +m[1] > 11) return "";
+    return m[1] + m[2].toUpperCase();
+  }
+  /** Читает три поля. { student } — всё верно, { error, field } — что исправить. */
+  function read(first, last, grade) {
+    var st = { first: cleanName(first.value), last: cleanName(last.value), grade: cleanGrade(grade.value) };
+    if (st.first.length < 2) return { error: "Напиши имя — хотя бы две буквы.", field: first };
+    if (st.last.length < 2) return { error: "Напиши фамилию — хотя бы две буквы.", field: last };
+    if (!st.grade) return { error: "Напиши класс цифрой и буквой, например 7Б.", field: grade };
+    return { student: st };
+  }
+  function fullName(st) { return st ? st.first + " " + st.last : ""; }
+
+  function clientId() {
+    var id = get(CLIENT);
+    if (!id) {
+      id = "";
+      for (var i = 0; i < 24; i++) id += "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36));
+      put(CLIENT, id);
+    }
+    return id;
+  }
+
+  var busy = {};
+  function flush() {
+    if (!/^https?:$/.test(location.protocol) || !window.XMLHttpRequest) return;
+    var queue = load(QUEUE);
+    Object.keys(queue).forEach(function (k) {
+      if (busy[k]) return;
+      busy[k] = true;
+      var body = JSON.stringify(queue[k]);
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/players");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.timeout = 15000;
+      xhr.onload = function () {
+        busy[k] = false;
+        // 400 — сервер такое не примет и потом, держать незачем; 429 и 5xx — попробуем позже
+        if (xhr.status !== 200 && xhr.status !== 400) return;
+        var q = load(QUEUE), sent = load(SENT);
+        if (q[k] && JSON.stringify(q[k]) === body) delete q[k];
+        sent[k] = body;
+        put(QUEUE, JSON.stringify(q));
+        put(SENT, JSON.stringify(sent));
+      };
+      xhr.onerror = xhr.ontimeout = function () { busy[k] = false; };
+      xhr.send(body);
+    });
+  }
+  /** Отправить снимок аккаунта; одинаковый с прошлым не шлём. */
+  function report(snap) {
+    snap.client = clientId();
+    var k = snap.game + ":" + snap.pid;
+    var body = JSON.stringify(snap);
+    if (load(SENT)[k] === body) return;
+    var q = load(QUEUE);
+    q[k] = snap;
+    put(QUEUE, JSON.stringify(q));
+    flush();
+  }
+  window.addEventListener("online", flush);
+  setTimeout(flush, 1500);
+
+  /** Кнопка «Я ученик» и три поля под ней. */
+  function bindToggle(btn, box, onChange) {
+    btn.addEventListener("click", function () {
+      var on = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      box.hidden = !on;
+      if (on) { var f = box.querySelector("input"); if (f) f.focus(); }
+      if (onChange) onChange(on);
+    });
+  }
+  function isOn(btn) { return btn.getAttribute("aria-pressed") === "true"; }
+  function reset(btn, box) {
+    btn.setAttribute("aria-pressed", "false");
+    box.hidden = true;
+    Array.prototype.forEach.call(box.querySelectorAll("input"), function (i) { i.value = ""; });
+  }
+  /** Ник для ученика, если свой не придумал: «Петя», занят — «Петя И.» */
+  function nickFor(st, taken, max) {
+    var tries = [st.first, st.first + " " + st.last.charAt(0) + ".", st.first + " " + st.last];
+    for (var i = 0; i < tries.length; i++) {
+      var n = tries[i].slice(0, max);
+      if (!taken(n)) return n;
+    }
+    return "";
+  }
+  return { read: read, fullName: fullName, report: report, bindToggle: bindToggle, isOn: isOn, reset: reset, nickFor: nickFor, cleanGrade: cleanGrade };
+})();
+
 // Аккаунты как в «Восьми ловушках»: у каждого ника свои звёзды и подсказки.
 // udar.profiles = { list: { ник: { stars, flagHint } }, active: ник }, звук общий — udar.settings
 var store = { list: {}, active: null };
@@ -1254,6 +1414,7 @@ function useProfile(name) {
   store.active = name;
   progress = store.list[name];
   save();
+  reportProfile(name);
   syncAccount();
   if (S && S.owner !== name) showAccountPhone();
 }
@@ -1809,6 +1970,8 @@ function openDebrief() {
   var best = progress.stars[S.lvl] || 0;
   progress.stars[S.lvl] = Math.max(best, stars, 0.5);   // 0.5 — уровень пройден, звёзд нет
   save();
+  reportProfile(store.active);
+  $("dbCertRow").hidden = !allPassed();
 
   $("dbNo").textContent = "Уровень " + (S.lvl + 1) + " · разбор";
   $("dbTitle").textContent = safe === scam.length ? "Ни одна ловушка не сработала" : safe ? "Почти получилось" : "Все ловушки сработали";
@@ -1835,12 +1998,192 @@ function openDebrief() {
 function closeChatSilently() { $("screen").classList.remove("in-chat"); $("notice").classList.remove("show"); }
 
 /* ============================================================
+   Сертификат — как в «Восьми ловушках», за все пройденные уровни
+   ============================================================ */
+// Тот же значок, что на сайте: восьмёрка с замочной скважиной
+var LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3EE6A8"/><stop offset=".5" stop-color="#22D3C5"/><stop offset="1" stop-color="#49C3F5"/></linearGradient><radialGradient id="bg" cx=".3" cy=".18" r="1"><stop offset="0" stop-color="#143A4A"/><stop offset="1" stop-color="#070E1A"/></radialGradient></defs><rect x="2" y="2" width="60" height="60" rx="17" fill="url(#bg)" stroke="url(#g)" stroke-width="2"/><circle cx="32" cy="21" r="8.5" fill="none" stroke="url(#g)" stroke-width="6"/><circle cx="32" cy="41" r="11" fill="none" stroke="url(#g)" stroke-width="6"/><circle cx="32" cy="38.6" r="3" fill="#EAF0FA"/><path d="M30.3 40.2h3.4l1.1 6h-5.6z" fill="#EAF0FA"/><circle cx="47" cy="13" r="2.4" fill="#3EE6A8"/></svg>';var logoImage = new Image();
+logoImage.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(LOGO_SVG);
+
+function allPassed(p) {
+  p = p || progress;
+  for (var i = 0; i < LEVELS.length; i++) if (!(p.stars && p.stars[i])) return false;
+  return true;
+}
+function certVerdict(share) {
+  if (share >= 0.9) return "Мошенникам здесь ловить нечего";
+  if (share >= 0.7) return "Внимательный и осторожный";
+  if (share >= 0.5) return "Знает главные признаки обмана";
+  return "Все уровни пройдены до конца";
+}
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+/** Рисует сертификат на холсте 1600×1130 (пропорции А4) и отдаёт адрес картинки. */
+function drawCertificate(name, done) {
+  var p = progress, st = profileStats(p), student = p.student;
+  var fontsReady = document.fonts && document.fonts.load
+    ? Promise.all([document.fonts.load('900 80px "Unbounded"'), document.fonts.load('600 30px "Golos Text"')]).catch(function () {})
+    : Promise.resolve();
+  var logoReady = logoImage.complete ? Promise.resolve() : new Promise(function (ok) { logoImage.onload = logoImage.onerror = ok; });
+  Promise.all([fontsReady, logoReady]).then(function () {
+    var W = 1600, H = 1130;
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var g = c.getContext("2d");
+    function grad(x0, y0, x1, y1) {
+      var lg = g.createLinearGradient(x0, y0, x1, y1);
+      lg.addColorStop(0, "#3EE6A8"); lg.addColorStop(.5, "#22D3C5"); lg.addColorStop(1, "#49C3F5");
+      return lg;
+    }
+    function glow(x, y, rad, color) { var rg = g.createRadialGradient(x, y, 0, x, y, rad); rg.addColorStop(0, color); rg.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = rg; g.fillRect(0, 0, W, H); }
+
+    // фон: ночь, сияние и огоньки — как в первой игре, но с синим «мессенджерным» отливом
+    g.fillStyle = "#070B14"; g.fillRect(0, 0, W, H);
+    glow(160, 80, 760, "rgba(13,100,150,.45)");
+    glow(1500, 1050, 700, "rgba(14,140,100,.40)");
+    var seed = st.stars * 31 + LEVELS.length * 7 + 5;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var i = 0; i < 70; i++) {
+      var x = rnd() * W, y = rnd() * H, rad = 2 + rnd() * 6;
+      var rg = g.createRadialGradient(x, y, 0, x, y, rad * 2.5);
+      rg.addColorStop(0, "rgba(73,195,245," + (.25 + rnd() * .45) + ")"); rg.addColorStop(1, "rgba(73,195,245,0)");
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, rad * 2.5, 0, 7); g.fill();
+    }
+
+    // двойная рамка
+    g.lineWidth = 4; g.strokeStyle = grad(60, 60, W - 60, H - 60);
+    roundRect(g, 48, 48, W - 96, H - 96, 34); g.stroke();
+    g.lineWidth = 1.5; g.strokeStyle = "rgba(120,160,210,.35)";
+    roundRect(g, 70, 70, W - 140, H - 140, 24); g.stroke();
+
+    g.textAlign = "center";
+    g.textBaseline = "alphabetic";
+    g.drawImage(logoImage, W / 2 - 62, 112, 124, 124);
+
+    g.font = '700 26px "Unbounded", sans-serif';
+    g.fillStyle = "#8E9BB8";
+    g.fillText("Д В О Й Н О Й   У Д А Р", W / 2, 292);
+
+    g.font = '900 104px "Unbounded", sans-serif';
+    g.fillStyle = grad(W / 2 - 420, 300, W / 2 + 420, 420);
+    g.fillText("СЕРТИФИКАТ", W / 2, 408);
+
+    g.font = '500 34px "Golos Text", sans-serif';
+    g.fillStyle = "#B4C3DA";
+    g.fillText("выдан", W / 2, 478);
+
+    // имя: уменьшаем шрифт, пока не влезет в ширину
+    var shown = (name || "").trim() || "Игрок";
+    var size = 84;
+    do { g.font = "800 " + size + 'px "Unbounded", sans-serif'; size -= 4; } while (g.measureText(shown).width > W - 360 && size > 36);
+    g.fillStyle = "#EAF0FA";
+    g.fillText(shown, W / 2, 578);
+    g.fillStyle = grad(W / 2 - 300, 0, W / 2 + 300, 0);
+    g.fillRect(W / 2 - 300, 606, 600, 3);
+
+    var shift = 0;
+    if (student && student.grade) {
+      g.font = '600 28px "Golos Text", sans-serif';
+      g.fillStyle = "#8E9BB8";
+      g.fillText(student.grade + " класс", W / 2, 650);
+      shift = 29;
+    }
+
+    g.font = '500 34px "Golos Text", sans-serif';
+    g.fillStyle = "#C5CEE3";
+    g.fillText("за прохождение игры «Двойной удар» —", W / 2, 676 + shift);
+    g.fillText("о мошенниках в мессенджерах и телефонных звонках", W / 2, 722 + shift);
+
+    // три плашки с результатом
+    var max = LEVELS.length * 3, share = max ? st.stars / max : 0;
+    var tiles = [
+      ["Уровни", st.done + " из " + LEVELS.length],
+      ["Звёзды", st.stars + " из " + max],
+      ["Итог", Math.round(share * 100) + "%"]
+    ];
+    var tw = 380, th = 128, gap = 32, tx0 = W / 2 - (tw * 3 + gap * 2) / 2, ty = 790;
+    tiles.forEach(function (t, i) {
+      var x = tx0 + i * (tw + gap);
+      g.fillStyle = "rgba(22,33,53,.92)";
+      roundRect(g, x, ty, tw, th, 20); g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = "rgba(73,195,245,.35)"; g.stroke();
+      g.font = '600 22px "Golos Text", sans-serif'; g.fillStyle = "#8E9BB8";
+      g.fillText(t[0].toUpperCase(), x + tw / 2, ty + 46);
+      g.font = '800 36px "Unbounded", sans-serif';
+      g.fillStyle = "#EAF0FA";
+      g.fillText(t[1], x + tw / 2, ty + 98);
+    });
+
+    g.font = '800 30px "Unbounded", sans-serif';
+    g.fillStyle = grad(W / 2 - 300, 0, W / 2 + 300, 0);
+    g.fillText(certVerdict(share), W / 2, 994);
+
+    var date = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+    g.font = '500 24px "Golos Text", sans-serif';
+    g.fillStyle = "#8E9BB8";
+    g.textAlign = "left";  g.fillText(date, 120, 1040);
+    g.textAlign = "right"; g.fillText("vosem-lovushek.duckdns.org", W - 120, 1040);
+
+    // blob, а не data-ссылка: у data-ссылок браузер не берёт имя файла из download
+    if (c.toBlob) c.toBlob(function (blob) { done(blob ? URL.createObjectURL(blob) : c.toDataURL("image/png")); }, "image/png");
+    else done(c.toDataURL("image/png"));
+  });
+}
+var certTimer = 0, certUrl = "";
+function paintCertificate() {
+  drawCertificate($("certName").value, function (url) {
+    if (certUrl.indexOf("blob:") === 0) URL.revokeObjectURL(certUrl);
+    certUrl = url;
+    $("certImg").src = url;
+    $("certSave").href = url;
+  });
+}
+function openCertificate() {
+  if (!allPassed()) return;
+  if (!$("certName").value || $("certName").dataset.owner !== store.active) {
+    $("certName").value = progress.student ? Pupil.fullName(progress.student) : (store.active || "");
+    $("certName").dataset.owner = store.active || "";
+  }
+  $("certLayer").hidden = false;
+  reportProfile(store.active);
+  paintCertificate();
+  $("certName").focus({ preventScroll: true });
+}
+$("certName").addEventListener("input", function () { clearTimeout(certTimer); certTimer = setTimeout(paintCertificate, 180); });
+$("certPrint").addEventListener("click", function () { window.print(); });
+$("certClose").addEventListener("click", function () { $("certLayer").hidden = true; });
+$("dbCert").addEventListener("click", openCertificate);
+
+/** Снимок аккаунта для списка «Кто играл» в админке. */
+function reportProfile(name) {
+  var p = store.list[name];
+  if (!p) return;
+  if (!p.id) { p.id = "u" + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36); save(); }
+  var st = profileStats(p);
+  Pupil.report({
+    game: "udar",
+    pid: p.id,
+    nick: name,
+    student: p.student || null,
+    progress: { levels: st.done, of: LEVELS.length, stars: st.stars },
+    cert: allPassed(p)
+  });
+}
+
+/* ============================================================
    Уровни, меню
    ============================================================ */
 function renderLevels() {
   var cur = live[store.active];
   var cont = cur ? '<button class="lvl cont" type="button" data-resume><span class="n">▶</span><div><b>Продолжить: уровень ' + (cur.lvl + 1) + "</b><span>«" + esc(cur.def.name) + "» — разговоры ждут с того же места</span></div><span></span></button>" : "";
-  $("levelList").innerHTML = cont + LEVELS.map(function (lv, i) {
+  var certBtn = allPassed() ? '<button class="lvl certlvl" type="button" data-cert><span class="n">★</span><div><b>Сертификат</b><span>Все уровни пройдены — забери свой сертификат</span></div><span></span></button>' : "";
+  $("levelList").innerHTML = cont + certBtn + LEVELS.map(function (lv, i) {
     var st = progress.stars[i] || 0;
     var open = i === 0 || progress.stars[i - 1];
     var got = Math.floor(st);
@@ -1859,7 +2202,7 @@ function renderSessions() {
     var st = profileStats(store.list[n]);
     return '<div class="sess"><button class="sess__pick' + (n === store.active ? " on" : "") + '" type="button" data-pick="' + esc(n) + '">' +
       '<span class="ava ava--sm" style="background:' + avaColor(n) + '">' + esc(n.charAt(0).toUpperCase()) + "</span>" +
-      "<span><b>" + esc(n) + "</b><small><span class=\"gold\">★</span> " + st.stars + " из " + (LEVELS.length * 3) + " · уровней: " + st.done + " из " + LEVELS.length + (live[n] ? " · ▶ идёт уровень " + (live[n].lvl + 1) : "") + "</small></span>" +
+      "<span><b>" + esc(n) + "</b>" + (store.list[n].student ? '<span class="pupil-tag">' + esc(Pupil.fullName(store.list[n].student) + " · " + store.list[n].student.grade + " класс") + "</span>" : "") + "<small><span class=\"gold\">★</span> " + st.stars + " из " + (LEVELS.length * 3) + " · уровней: " + st.done + " из " + LEVELS.length + (live[n] ? " · ▶ идёт уровень " + (live[n].lvl + 1) : "") + "</small></span>" +
       (n === store.active ? "<i>сейчас</i>" : "") + "</button>" +
       '<button class="sess__del" type="button" data-del="' + esc(n) + '" aria-label="Удалить аккаунт ' + esc(n) + '">×</button></div>';
   }).join("") : '<p class="hint">Аккаунтов пока нет — придумай ник и нажми «Создать».</p>';
@@ -1877,11 +2220,21 @@ function openProfiles() {
 }
 function createProfile() {
   var name = $("newName").value.replace(/\s+/g, " ").trim();
+  function isTaken(nm) { return Object.keys(store.list).some(function (n) { return n.toLowerCase() === nm.toLowerCase(); }); }
+  var student = null;
+  if (Pupil.isOn($("pupilToggle"))) {
+    var got = Pupil.read($("pFirst"), $("pLast"), $("pGrade"));
+    if (got.error) { $("nameNote").textContent = got.error; got.field.focus(); return; }
+    student = got.student;
+    // ник не придуман — берём имя
+    if (!name) name = Pupil.nickFor(student, isTaken, 14);
+  }
   if (!name) { $("nameNote").textContent = "Напиши ник — хотя бы одну букву."; return; }
-  var taken = Object.keys(store.list).some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
-  if (taken) { $("nameNote").textContent = "Такой ник уже есть — выбери его в списке или придумай другой."; return; }
-  store.list[name] = { stars: {}, flagHint: false };
+  if (isTaken(name)) { $("nameNote").textContent = "Такой ник уже есть — выбери его в списке или придумай другой."; return; }
+  store.list[name] = { stars: {}, flagHint: false, id: "u" + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36) };
+  if (student) store.list[name].student = student;
   $("newName").value = "";
+  Pupil.reset($("pupilToggle"), $("pupilBox"));
   useProfile(name);
   $("profileLayer").hidden = true;
   openMenu();
@@ -1999,6 +2352,7 @@ $("notice").addEventListener("click", function () {
   $("notice").classList.remove("show"); openChat(this.dataset.chat);
 });
 $("levelList").addEventListener("click", function (e) {
+  if (e.target.closest("[data-cert]")) { openCertificate(); return; }
   if (e.target.closest("[data-resume]") && live[store.active]) { audio(); S = live[store.active]; $("menuLayer").hidden = true; resumeLevel(); return; }
   var b = e.target.closest("[data-lvl]"); if (b && !b.disabled) { audio(); showIntro(Number(b.dataset.lvl)); } });
 $("introGo").addEventListener("click", startLevel);
@@ -2006,6 +2360,8 @@ $("acctBtn").addEventListener("click", openProfiles);
 $("pAcct").addEventListener("click", openProfiles);
 $("profBack").addEventListener("click", openMenu);
 $("newSession").addEventListener("click", createProfile);
+Pupil.bindToggle($("pupilToggle"), $("pupilBox"), function (on) { $("newName").placeholder = on ? "ник по желанию" : "новый ник"; $("nameNote").textContent = ""; });
+["pFirst", "pLast", "pGrade"].forEach(function (id) { $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") createProfile(); }); });
 $("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") createProfile(); });
 $("sessions").addEventListener("click", function (e) {
   var pick = e.target.closest("[data-pick]"), del = e.target.closest("[data-del]");
@@ -2040,6 +2396,8 @@ S = newLevelState(0);
 render();
 syncAccount();
 if (store.active) renderLevels(); else openProfiles();
+// аккаунт уже выбран раньше — всё равно сообщаем, как далеко он прошёл (список «Кто играл»)
+if (store.active) reportProfile(store.active);
 $("clock").textContent = nowStr();
 
 // для автопроверки

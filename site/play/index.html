@@ -754,6 +754,24 @@
   }
 
   .note { font-size: calc(13px * var(--ui-text)); color: var(--muted); min-height: 18px; }
+
+  /* «Я ученик»: переключатель и три поля под ником */
+  .pupil-toggle {
+    display: inline-flex; align-items: center; gap: 10px; align-self: flex-start;
+    padding: 10px 14px; border-radius: 12px; border: 1px solid var(--fog); background: var(--asphalt);
+    color: var(--paper); font-weight: 600; font-size: calc(15px * var(--ui-text)); cursor: pointer;
+  }
+  .pupil-toggle:hover { border-color: var(--accent); }
+  .pupil-toggle__box { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--muted); display: grid; place-items: center; flex: none; }
+  .pupil-toggle[aria-pressed="true"] { border-color: var(--accent); }
+  .pupil-toggle[aria-pressed="true"] .pupil-toggle__box { background: var(--grad); border-color: transparent; }
+  .pupil-toggle[aria-pressed="true"] .pupil-toggle__box::after { content: ""; width: 9px; height: 5px; border-left: 2.5px solid #04201A; border-bottom: 2.5px solid #04201A; transform: translateY(-1px) rotate(-45deg); }
+  .pupil-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pupil-form[hidden] { display: none; }
+  .pupil-form #pGrade, .pupil-form .note { grid-column: 1 / -1; }
+  .pupil-form .note { margin: 0; }
+  @media (max-width: 480px) { .pupil-form { grid-template-columns: 1fr; } }
+  .session__main .pupil-tag { color: var(--accent); }
   .note[data-kind="error"] { color: var(--alarm); }
 
   /* ---------- ситуация ---------- */
@@ -1813,6 +1831,13 @@
         <div class="agerow">
           <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта">
           <button class="btn btn--go" id="newSession">Создать</button>
+        </div>
+        <button type="button" class="pupil-toggle" id="pupilToggle" aria-pressed="false" aria-controls="pupilBox"><span class="pupil-toggle__box" aria-hidden="true"></span>Я ученик</button>
+        <div class="pupil-form" id="pupilBox" hidden>
+          <input type="text" id="pFirst" maxlength="30" placeholder="Имя" aria-label="Имя" autocomplete="given-name">
+          <input type="text" id="pLast" maxlength="30" placeholder="Фамилия" aria-label="Фамилия" autocomplete="family-name">
+          <input type="text" id="pGrade" maxlength="10" placeholder="Класс, например 7Б" aria-label="Класс" autocomplete="off">
+          <p class="note">Имя, фамилию и класс увидит только учитель — так он найдёт тебя в списке тех, кто прошёл игру. Ник можно не придумывать.</p>
         </div>
         <p class="note" id="nameNote"></p>
       </div>
@@ -3694,10 +3719,20 @@ async function drawCertificate(name) {
   g.fillStyle = grad(W / 2 - 300, 0, W / 2 + 300, 0);
   g.fillRect(W / 2 - 300, 606, 600, 3);
 
+  // ученику — класс под именем, остальные строки чуть ниже
+  const prof = activeProfile();
+  const grade = prof && prof.student ? prof.student.grade : "";
+  const shift = grade ? 18 : 0;
+  if (grade) {
+    g.font = '600 28px "Golos Text", sans-serif';
+    g.fillStyle = "#8E9BB8";
+    g.fillText(grade + " класс", W / 2, 650);
+  }
+
   g.font = '500 34px "Golos Text", sans-serif';
   g.fillStyle = "#C5CEE3";
-  g.fillText("за прохождение района «Восемь ловушек» —", W / 2, 676);
-  g.fillText("игры о мошенниках и безопасности в сети и в жизни", W / 2, 722);
+  g.fillText("за прохождение района «Восемь ловушек» —", W / 2, 676 + shift * 1.6);
+  g.fillText("игры о мошенниках и безопасности в сети и в жизни", W / 2, 722 + shift * 1.6);
 
   // три плашки с результатом
   const level = LEVELS.find(l => l.key === r.level) || { name: "—", range: "" };
@@ -3749,7 +3784,7 @@ async function paintCertificate() {
 async function openCertificate() {
   if (!state.lastResult) return;
   const prof = activeProfile();
-  if (!el("certName").value) el("certName").value = prof ? prof.name : "";
+  if (!el("certName").value) el("certName").value = prof ? (prof.student ? Pupil.fullName(prof.student) : prof.name) : "";
   show("certLayer", true);
   await paintCertificate();
   el("certName").focus();
@@ -3779,6 +3814,114 @@ function closeMemo() {
 el("memoBtn").addEventListener("click", openMemo);
 el("fMemo").addEventListener("click", openMemo);
 el("memoClose").addEventListener("click", closeMemo);
+
+/* ---------- ученик и список «Кто играл» (общий код обеих игр) ----------
+   «Я ученик» — по желанию: имя, фамилия и класс, чтобы учитель нашёл ребёнка в списке.
+   Игра шлёт на сервер снимок аккаунта целиком: ник, ученик ли, сколько пройдено, есть ли
+   сертификат. Нет интернета — снимок ждёт в браузере и уходит при следующей возможности. */
+var Pupil = (function () {
+  var QUEUE = "lovushki.reports", SENT = "lovushki.sent", CLIENT = "lovushki.fbClient";
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function put(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* приватный режим */ } }
+  function load(k) { try { return JSON.parse(get(k) || "{}") || {}; } catch (e) { return {}; } }
+
+  function cleanName(v) {
+    v = String(v || "").replace(/[^A-Za-zА-Яа-яЁё' -]/g, "").replace(/\s+/g, " ").replace(/^[ '-]+|[ '-]+$/g, "");
+    return v.split("-").map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join("-");
+  }
+  // «7 б», «7-Б», «11а класс» → «7Б», «11А»
+  function cleanGrade(v) {
+    var m = /^\s*(\d{1,2})\s*[-–]?\s*([А-ЯЁа-яёA-Za-z]?)\s*(класс|кл\.?)?\s*$/i.exec(String(v || ""));
+    if (!m || +m[1] < 1 || +m[1] > 11) return "";
+    return m[1] + m[2].toUpperCase();
+  }
+  /** Читает три поля. { student } — всё верно, { error, field } — что исправить. */
+  function read(first, last, grade) {
+    var st = { first: cleanName(first.value), last: cleanName(last.value), grade: cleanGrade(grade.value) };
+    if (st.first.length < 2) return { error: "Напиши имя — хотя бы две буквы.", field: first };
+    if (st.last.length < 2) return { error: "Напиши фамилию — хотя бы две буквы.", field: last };
+    if (!st.grade) return { error: "Напиши класс цифрой и буквой, например 7Б.", field: grade };
+    return { student: st };
+  }
+  function fullName(st) { return st ? st.first + " " + st.last : ""; }
+
+  function clientId() {
+    var id = get(CLIENT);
+    if (!id) {
+      id = "";
+      for (var i = 0; i < 24; i++) id += "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36));
+      put(CLIENT, id);
+    }
+    return id;
+  }
+
+  var busy = {};
+  function flush() {
+    if (!/^https?:$/.test(location.protocol) || !window.XMLHttpRequest) return;
+    var queue = load(QUEUE);
+    Object.keys(queue).forEach(function (k) {
+      if (busy[k]) return;
+      busy[k] = true;
+      var body = JSON.stringify(queue[k]);
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/players");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.timeout = 15000;
+      xhr.onload = function () {
+        busy[k] = false;
+        // 400 — сервер такое не примет и потом, держать незачем; 429 и 5xx — попробуем позже
+        if (xhr.status !== 200 && xhr.status !== 400) return;
+        var q = load(QUEUE), sent = load(SENT);
+        if (q[k] && JSON.stringify(q[k]) === body) delete q[k];
+        sent[k] = body;
+        put(QUEUE, JSON.stringify(q));
+        put(SENT, JSON.stringify(sent));
+      };
+      xhr.onerror = xhr.ontimeout = function () { busy[k] = false; };
+      xhr.send(body);
+    });
+  }
+  /** Отправить снимок аккаунта; одинаковый с прошлым не шлём. */
+  function report(snap) {
+    snap.client = clientId();
+    var k = snap.game + ":" + snap.pid;
+    var body = JSON.stringify(snap);
+    if (load(SENT)[k] === body) return;
+    var q = load(QUEUE);
+    q[k] = snap;
+    put(QUEUE, JSON.stringify(q));
+    flush();
+  }
+  window.addEventListener("online", flush);
+  setTimeout(flush, 1500);
+
+  /** Кнопка «Я ученик» и три поля под ней. */
+  function bindToggle(btn, box, onChange) {
+    btn.addEventListener("click", function () {
+      var on = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      box.hidden = !on;
+      if (on) { var f = box.querySelector("input"); if (f) f.focus(); }
+      if (onChange) onChange(on);
+    });
+  }
+  function isOn(btn) { return btn.getAttribute("aria-pressed") === "true"; }
+  function reset(btn, box) {
+    btn.setAttribute("aria-pressed", "false");
+    box.hidden = true;
+    Array.prototype.forEach.call(box.querySelectorAll("input"), function (i) { i.value = ""; });
+  }
+  /** Ник для ученика, если свой не придумал: «Петя», занят — «Петя И.» */
+  function nickFor(st, taken, max) {
+    var tries = [st.first, st.first + " " + st.last.charAt(0) + ".", st.first + " " + st.last];
+    for (var i = 0; i < tries.length; i++) {
+      var n = tries[i].slice(0, max);
+      if (!taken(n)) return n;
+    }
+    return "";
+  }
+  return { read: read, fullName: fullName, report: report, bindToggle: bindToggle, isOn: isOn, reset: reset, nickFor: nickFor, cleanGrade: cleanGrade };
+})();
 
 /* ---------- аккаунты ---------- */
 
@@ -3858,6 +4001,7 @@ function paintSessions() {
     return '<div class="session">' +
       '<button class="session__main" data-id="' + prof.id + '">' +
         "<b>" + escapeHtml(prof.name) + "</b>" +
+        (prof.student ? '<span class="pupil-tag">' + escapeHtml(Pupil.fullName(prof.student) + " · " + prof.student.grade + " класс") + "</span>" : "") +
         "<span>верных ответов: " + prof.correct + best + "</span>" +
       "</button>" +
       '<button class="session__del" data-del="' + prof.id + '" title="Удалить аккаунт" aria-label="Удалить аккаунт ' + escapeHtml(prof.name) + '">×</button>' +
@@ -3888,8 +4032,23 @@ el("switchProfile").addEventListener("click", () => {
 });
 
 function createSession() {
-  const name = el("newName").value.trim();
+  let name = el("newName").value.trim();
   const note = el("nameNote");
+  const taken = n => state.profiles.some(item => item.name.toLowerCase() === n.toLowerCase());
+
+  let student = null;
+  if (Pupil.isOn(el("pupilToggle"))) {
+    const got = Pupil.read(el("pFirst"), el("pLast"), el("pGrade"));
+    if (got.error) {
+      note.dataset.kind = "error";
+      note.textContent = got.error;
+      got.field.focus();
+      return;
+    }
+    student = got.student;
+    // ник не придуман — берём имя
+    if (!name) name = Pupil.nickFor(student, taken, 14);
+  }
 
   if (name.length < 2) {
     note.dataset.kind = "error";
@@ -3904,13 +4063,35 @@ function createSession() {
     return;
   }
 
-  const prof = makeProfile(name);
+  const prof = makeProfile(name, student ? { student: student } : null);
   state.profiles.push(prof);
   el("newName").value = "";
+  Pupil.reset(el("pupilToggle"), el("pupilBox"));
   note.dataset.kind = "";
   note.textContent = "";
   useProfile(prof.id);
 }
+
+/** Снимок аккаунта для списка «Кто играл» в админке. */
+function reportProfile(prof) {
+  if (!prof) return;
+  const best = prof.best ? { safe: prof.best.safe, total: prof.best.total, level: levelName(prof.best.level) } : null;
+  Pupil.report({
+    game: "lovushki",
+    pid: prof.id,
+    nick: prof.name,
+    student: prof.student || null,
+    progress: { finished: prof.finished || 0, best: best },
+    // сертификат открывается после первого прохождения района
+    cert: (prof.finished || 0) > 0
+  });
+}
+
+Pupil.bindToggle(el("pupilToggle"), el("pupilBox"), on => {
+  el("newName").placeholder = on ? "ник по желанию" : "новый ник";
+  el("nameNote").textContent = "";
+});
+["pFirst", "pLast", "pGrade"].forEach(id => el(id).addEventListener("keydown", e => { if (e.key === "Enter") createSession(); }));
 
 function useProfile(id) {
   state.profileId = id;
@@ -3927,6 +4108,7 @@ function useProfile(id) {
   state.correctTotal = prof.correct || 0;
   prof.played = Date.now();
   saveProfiles();
+  reportProfile(prof);
 
   el("whoName").textContent = prof.name;
   el("sessionName").textContent = prof.name;
@@ -7735,12 +7917,14 @@ function finish() {
   if (prof) {
     if (!prof.levels) prof.levels = {};
     prof.levels[state.level] = true;
+    prof.finished = (prof.finished || 0) + 1;
     if (total > 0 && safe === total) grant("clean");
     syncProfile();
   }
   checkAchievements();
 
   saveBest(safe, total);
+  reportProfile(prof);
   show("finalLayer", true);
   el("fAgain").focus();
   refreshHud();
