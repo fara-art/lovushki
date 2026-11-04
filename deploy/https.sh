@@ -12,6 +12,8 @@ set -e
 DOMAIN="$1"
 EMAIL="$2"
 CONF=""
+# Пути считаем от самого скрипта, как в setup.sh
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ "$(id -u)" != "0" ]; then
     echo "Нужен root. Запусти: sudo sh deploy/https.sh имя.duckdns.org"
@@ -84,19 +86,7 @@ mkdir -p /etc/lovushki && echo "$DOMAIN" > /etc/lovushki/domain
 
 echo "→ Оставляю рабочей старую ссылку по адресу сервера"
 IP_CONF="/etc/nginx/conf.d/lovushki-ip.conf"
-cat > "$IP_CONF" <<'CONF'
-# Ссылка по адресу сервера продолжает работать после включения https.
-server {
-    listen 80 default_server;
-    server_name _;
-
-    root /var/www/lovushki;
-    index index.html;
-    charset utf-8;
-
-    location / { try_files $uri $uri/ =404; }
-}
-CONF
+cp "$ROOT/deploy/nginx-ip.conf" "$IP_CONF"
 
 if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || nginx -s reload 2>/dev/null || nginx

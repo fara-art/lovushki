@@ -30,11 +30,17 @@ else
 fi
 
 echo "→ Копирую сайт в $SITE_DIR"
-mkdir -p "$SITE_DIR"
-cp -r "$ROOT/site/." "$SITE_DIR/"
-chown -R www-data:www-data "$SITE_DIR"
-find "$SITE_DIR" -type d -exec chmod 755 {} \;
-find "$SITE_DIR" -type f -exec chmod 644 {} \;
+# Собираем новую версию рядом и подменяем папку целиком: так с сервера уходят и файлы,
+# которые убрали из site/, а сайт пропадает лишь на долю секунды между двумя mv
+rm -rf "$SITE_DIR.new" "$SITE_DIR.old"
+mkdir -p "$SITE_DIR.new"
+cp -r "$ROOT/site/." "$SITE_DIR.new/"
+chown -R www-data:www-data "$SITE_DIR.new"
+find "$SITE_DIR.new" -type d -exec chmod 755 {} \;
+find "$SITE_DIR.new" -type f -exec chmod 644 {} \;
+if [ -d "$SITE_DIR" ]; then mv "$SITE_DIR" "$SITE_DIR.old"; fi
+mv "$SITE_DIR.new" "$SITE_DIR"
+rm -rf "$SITE_DIR.old"
 
 echo "→ Ставлю приём отзывов"
 if ! command -v python3 >/dev/null 2>&1; then
@@ -142,6 +148,12 @@ fi
 
 if [ -n "$HTTPS_DOMAIN" ]; then
     sed -i "s/^\( *\)server_name .*/\1server_name $HTTPS_DOMAIN;/" "$CONF_PATH"
+fi
+
+# Блок для ссылки по IP (ставит deploy/https.sh) — обновляем, чтобы и там работали отзывы
+if [ -f /etc/nginx/conf.d/lovushki-ip.conf ]; then
+    cp "$ROOT/deploy/nginx-ip.conf" /etc/nginx/conf.d/lovushki-ip.conf
+    echo "  блок для ссылки по IP обновлён"
 fi
 
 echo "→ Проверяю конфиг"
