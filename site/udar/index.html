@@ -1,0 +1,2050 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Двойной удар — игра о мошенниках в мессенджерах</title>
+<meta name="description" content="Вторая игра проекта «Восемь ловушек». Телефон, мессенджер и много чатов: «знакомая» зовёт гулять, а потом пишет «майор ФСБ». Распознай схему, отметь красные флажки и не попадись.">
+<meta name="theme-color" content="#070B14">
+<link rel="canonical" href="https://vosem-lovushek.duckdns.org/udar/">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon-120.png" type="image/png" sizes="120x120">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/fonts.css">
+<style>
+  :root {
+    --ink: #070B14;
+    --ink-2: #0B1120;
+    --slab: #111A2B;
+    --slab-2: #17223A;
+    --fog: #253552;
+    --line: rgba(120, 160, 210, .16);
+    --paper: #EAF0FA;
+    --muted: #8E9BB8;
+    --mint: #3EE6A8;
+    --teal: #22D3C5;
+    --sky: #49C3F5;
+    --lamp: #FFC46B;
+    --alarm: #FF6F61;
+    --flag: #FF5A4E;
+    --me: #1F6F5C;
+    --grad: linear-gradient(100deg, #3EE6A8, #22D3C5 50%, #49C3F5);
+    --display: "Unbounded", "Golos Text", system-ui, sans-serif;
+    --body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font: 16px/1.45 var(--body);
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(900px 600px at 10% -10%, rgba(14, 140, 100, .32), transparent 65%),
+      radial-gradient(800px 600px at 100% 20%, rgba(13, 100, 150, .3), transparent 65%),
+      radial-gradient(800px 700px at 50% 115%, rgba(150, 40, 60, .22), transparent 65%),
+      linear-gradient(180deg, #081320, #070B14 60%);
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+
+  /* ---------- раскладка ---------- */
+
+  .app {
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(260px, 360px) auto;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    padding: 24px max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left));
+  }
+  .panel { display: flex; flex-direction: column; gap: 18px; max-height: 100%; overflow: auto; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+  .brand img { width: 44px; height: 44px; filter: drop-shadow(0 0 12px rgba(62, 230, 168, .4)); }
+  .brand b { font: 800 22px/1.1 var(--display); }
+  .brand small { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .card {
+    padding: 18px 20px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(22, 32, 52, .85), rgba(13, 20, 35, .85));
+    border: 1px solid var(--line);
+  }
+  .card h2 { margin: 0 0 6px; font: 800 18px/1.25 var(--display); }
+  .card p { margin: 0; color: #C9D4EA; font-size: 15px; }
+  .kicker { font: 700 11px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--teal); margin-bottom: 10px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px 14px; border-radius: 14px; background: rgba(7, 11, 20, .5); border: 1px solid var(--line); }
+  .stat b { display: block; font: 800 24px/1 var(--display); }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .stat--flag b { color: var(--flag); }
+  .progress { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .progress div { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #C9D4EA; }
+  .progress i { width: 10px; height: 10px; border-radius: 50%; background: var(--fog); flex: none; }
+  .progress .ok i { background: var(--mint); }
+  .progress .bad i { background: var(--alarm); }
+  .progress .live i { background: var(--lamp); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 18px; border-radius: 12px; border: 0; cursor: pointer;
+    background: var(--grad); color: var(--ink); font: 700 14px var(--display); text-decoration: none;
+  }
+  .btn--ghost { background: rgba(17, 26, 43, .9); color: var(--paper); border: 1px solid #2E4366; }
+  .btn--danger { background: var(--alarm); color: #1B0806; }
+  .btn:hover { filter: brightness(1.08); }
+  .hint { font-size: 13px; color: var(--muted); }
+
+  /* ---------- телефон ---------- */
+
+  .phone {
+    position: relative;
+    width: 390px;
+    height: min(820px, calc(100dvh - 48px));
+    border-radius: 46px;
+    padding: 12px;
+    background: linear-gradient(145deg, #3A4258, #1A1F2C 40%, #2A3044);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .55), inset 0 0 0 1.5px rgba(255, 255, 255, .12);
+  }
+  .screen {
+    position: relative;
+    height: 100%;
+    border-radius: 36px;
+    overflow: hidden;
+    background: #0C1220;
+    display: flex;
+    flex-direction: column;
+  }
+  .status {
+    flex: none;
+    height: 44px;
+    padding: 0 26px;
+    display: flex; align-items: center; justify-content: space-between;
+    font: 600 14px var(--body);
+    color: #fff;
+    position: relative;
+    z-index: 3;
+  }
+  .status::after {
+    content: ""; position: absolute; left: 50%; top: 10px; width: 110px; height: 28px; margin-left: -55px;
+    border-radius: 20px; background: #000;
+  }
+  .status svg { width: 46px; height: 12px; }
+  .view { position: absolute; inset: 44px 0 0; display: flex; flex-direction: column; transition: transform .28s ease; background: #0C1220; }
+  #listView { z-index: 1; background: #17212B; }
+  #chatView { z-index: 2; transform: translateX(100%); }
+  .screen.in-chat #chatView { transform: none; }
+  .screen.in-chat #listView { transform: translateX(-25%); }
+
+  /* Список чатов в духе Telegram: тёмный фон, разделители после аватарки, подсветка при нажатии */
+  .apphead { padding: 8px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
+  .apphead h1 { margin: 0; font: 800 26px/1.1 var(--display); }
+  .apphead span { font-size: 13px; color: var(--muted); }
+  .search { margin: 0 12px 8px; padding: 8px 14px 8px 38px; border-radius: 20px; background: #242F3D; color: #7F91A4; font-size: 15px; position: relative; }
+  .search::before { content: ""; position: absolute; left: 14px; top: 50%; width: 11px; height: 11px; margin-top: -8px; border: 2px solid #7F91A4; border-radius: 50%; }
+  .search::after { content: ""; position: absolute; left: 25px; top: 50%; width: 2px; height: 6px; margin-top: 2px; background: #7F91A4; border-radius: 1px; transform: rotate(-45deg); }
+  .chats { flex: 1; overflow-y: auto; border-top: 1px solid #0E1621; }
+  .empty { padding: 60px 30px; text-align: center; color: var(--muted); font-size: 15px; }
+  .chatrow {
+    position: relative; width: 100%; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+    padding: 9px 12px; border: 0; background: none; text-align: left; cursor: pointer;
+    transition: background .15s;
+  }
+  /* выплывает только новый чат; уже стоящие строки при новых сообщениях не мигают */
+  .chatrow.fresh { animation: rowIn .35s ease; }
+  /* разделитель как в Telegram: чёткая линия через всю ширину, под каждым чатом */
+  .chatrow::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: #0A1119; box-shadow: 0 1px 0 rgba(255, 255, 255, .035); }
+  .chatrow:hover { background: #202B36; }
+  .chatrow:active { background: #2B5278; }
+  .chatrow .ava { width: 54px; height: 54px; }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(-8px); } }
+  .ava {
+    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    font: 800 17px var(--display); color: #fff; position: relative; flex: none;
+  }
+  .ava--sm { width: 38px; height: 38px; font-size: 13px; }
+  .ava--lg { width: 110px; height: 110px; font-size: 34px; }
+  .ava .done { position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #17212B; font-size: 11px; color: #062016; }
+  .ava .done.ok { background: var(--mint); }
+  .ava .done.bad { background: var(--alarm); color: #2A0905; }
+  .chatrow .top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .chatrow b { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tick { width: 16px; height: 16px; flex: none; }
+  .chatrow .last { font-size: 15px; color: #7F91A4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .chatrow .last.typing { color: #6AB3F3; }
+  .chatrow .meta { align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; padding: 3px 0; font-size: 13px; color: #7F91A4; }
+  .badge { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: #4C9CE2; color: #fff; font: 700 12px/22px var(--body); text-align: center; }
+  .badge.wait { background: var(--lamp); color: #261803; }
+
+  .chathead { flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 12px 10px; background: #17212B; border-bottom: 1px solid #0E1621; }
+  .back { width: 36px; height: 36px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; border-radius: 50%; }
+  .back:hover { background: rgba(255, 255, 255, .06); }
+  .back svg { width: 22px; height: 22px; }
+  .back { position: relative; }
+  .back .cnt { position: absolute; left: 25px; top: -2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #4C9CE2; color: #fff; font: 700 11px/18px var(--body); text-align: center; }
+  .back .cnt:empty { display: none; }
+  .chathead .who { min-width: 0; flex: 1; }
+  .chathead .who b { display: flex; align-items: center; gap: 5px; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; }
+  .chathead .who span { font-size: 13px; color: var(--muted); }
+  .chathead .who span.typing { color: var(--mint); }
+  /* Фон переписки в духе Telegram: розово-сиреневый градиент и свой узор из контурных значков */
+  .msgs {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 12px 10px; display: flex; flex-direction: column; gap: 6px;
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%23fff' stroke-opacity='.42' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E %3Cpath d='M34 48c-9-7-14-11-14-17a7 7 0 0 1 14-2 7 7 0 0 1 14 2c0 6-5 10-14 17z'/%3E %3Cpath d='M168 20l4 9 10 1-8 7 3 10-9-5-9 5 3-10-8-7 10-1z'/%3E %3Cpath d='M88 74h40a8 8 0 0 1 8 8v18a8 8 0 0 1-8 8h-26l-10 9v-9h-4a8 8 0 0 1-8-8V82a8 8 0 0 1 8-8z'/%3E %3Crect x='186' y='92' width='26' height='44' rx='6'/%3E%3Cpath d='M195 128h8'/%3E %3Crect x='26' y='150' width='30' height='24' rx='5'/%3E%3Cpath d='M32 150v-8a9 9 0 0 1 18 0v8'/%3E %3Ccircle cx='150' cy='176' r='6'/%3E%3Cpath d='M150 160v4M150 188v4M134 176h4M162 176h4M139 165l3 3M158 184l3 3M161 165l-3 3M142 184l-3 3'/%3E %3Cpath d='M84 206l40-16-16 36-6-14z'/%3E%3Cpath d='M102 212l22-22'/%3E %3Cpath d='M206 200h22v16h-22z'/%3E%3Cpath d='M206 200l11 9 11-9'/%3E %3Cpath d='M120 26c4-6 12-6 14 0'/%3E%3Ccircle cx='112' cy='150' r='3'/%3E%3Ccircle cx='222' cy='60' r='3'/%3E%3Ccircle cx='60' cy='104' r='3'/%3E%3Ccircle cx='12' cy='214' r='3'/%3E %3C/g%3E%3C/svg%3E") 0 0 / 240px 240px,
+      radial-gradient(70% 55% at 0% 0%, #F6B8D3 0%, transparent 70%),
+      radial-gradient(60% 50% at 100% 30%, #D9A8F0 0%, transparent 72%),
+      radial-gradient(70% 60% at 20% 100%, #F7C9A9 0%, transparent 70%),
+      radial-gradient(60% 60% at 100% 100%, #E58FBF 0%, transparent 70%),
+      #EDB3D2;
+    background-attachment: local, scroll, scroll, scroll, scroll, scroll;
+  }
+  .day { align-self: center; font-size: 13px; font-weight: 600; color: #fff; padding: 3px 11px; border-radius: 12px; background: rgba(70, 30, 70, .32); margin-bottom: 4px; }
+  .msg { max-width: 82%; position: relative; animation: bubbleIn .38s cubic-bezier(.2, .85, .3, 1.15) both; transform-origin: 0% 100%; }
+  .msg.me { transform-origin: 100% 100%; }
+  .msg.sys { transform-origin: 50% 50%; animation-name: sysIn; }
+  .msg.old, .sub.old { animation: none; }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+  /* пузырь «выплывает» снизу из угла, как в мессенджере */
+  @keyframes bubbleIn { from { opacity: 0; transform: translateY(14px) scale(.86); } 60% { opacity: 1; } }
+  @keyframes sysIn { from { opacity: 0; transform: scale(.94); } }
+  .bubble {
+    padding: 8px 12px 6px; border-radius: 18px; font-size: 15px; line-height: 1.38; word-wrap: break-word;
+  }
+  .bubble { box-shadow: 0 1px 1.5px rgba(80, 20, 60, .18); }
+  .bubble time { display: block; text-align: right; font-size: 11px; color: rgba(20, 20, 30, .45); margin-top: 2px; }
+  .msg.them { align-self: flex-start; }
+  .msg.them .bubble { background: #fff; color: #111418; border-bottom-left-radius: 6px; cursor: pointer; }
+  .msg.them .bubble:hover { background: #F6F3F7; }
+  .msg.me { align-self: flex-end; }
+  .msg.me .bubble { background: #E3FFCC; color: #111418; border-bottom-right-radius: 6px; }
+  .msg.me .bubble time { color: #4CA64C; }
+  /* служебные плашки — как в Telegram: полупрозрачные поверх фона */
+  .msg.sys { align-self: center; max-width: 92%; text-align: center; font-size: 13px; font-weight: 500; color: #fff; padding: 6px 12px; border-radius: 14px; background: rgba(70, 30, 70, .38); }
+  .msg.sys.bad { background: rgba(190, 40, 50, .72); }
+  .msg.sys.ok { background: rgba(20, 130, 90, .7); }
+  /* неверный ответ — сразу объяснение в красной рамке */
+  .msg.warn, .sub.warn { align-self: stretch; max-width: none; margin: 2px 4px; padding: 10px 13px 11px; border: 2px solid #E5484D; border-radius: 14px; background: #FFF0F0; color: #4A1015; font-size: 14px; line-height: 1.4; box-shadow: 0 2px 10px rgba(190, 40, 50, .25); transform-origin: 50% 50%; animation-name: sysIn; cursor: default; }
+  .msg.warn b, .sub.warn b { display: flex; align-items: center; gap: 6px; color: #C62832; font-size: 13px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; margin-bottom: 4px; }
+  .msg.flagged .bubble { box-shadow: inset 0 0 0 2px var(--flag), 0 1px 1.5px rgba(80, 20, 60, .18); }
+  .msg .flagmark {
+    position: absolute; right: -8px; top: -8px; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--flag); display: none; place-items: center; box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+  }
+  .msg.flagged .flagmark { display: grid; }
+  .flagmark svg { width: 13px; height: 13px; }
+  .typingdots { align-self: flex-start; padding: 12px 14px; border-radius: 18px 18px 18px 6px; background: #fff; box-shadow: 0 1px 1.5px rgba(80, 20, 60, .18); display: flex; gap: 4px; animation: bubbleIn .3s ease both; transform-origin: 0% 100%; }
+  .typingdots i { width: 7px; height: 7px; border-radius: 50%; background: #A08AA6; animation: dot 1s infinite; }
+  .typingdots i:nth-child(2) { animation-delay: .15s; }
+  .typingdots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 30% { transform: translateY(-4px); opacity: 1; } 0%, 60%, 100% { opacity: .4; } }
+
+  .att { margin: -2px -6px 4px; border-radius: 12px; overflow: hidden; background: #F3EEF4; }
+  .att svg { display: block; width: 100%; height: auto; }
+  .att .cap { padding: 6px 10px 8px; font-size: 13px; color: #6B6470; }
+  .att .cap b { display: block; font-size: 13px; color: #2481CC; }
+  .msg.me .att { background: #D2F3B8; }
+
+  /* Тонкие тёмные полосы прокрутки, как в мессенджере, — системные на компьютере торчат и сбивают ширину */
+  .msgs, .answers, .chats, .subs, .modal, .panel { scrollbar-width: thin; scrollbar-color: rgba(127, 145, 164, .45) transparent; }
+  .msgs::-webkit-scrollbar, .answers::-webkit-scrollbar, .chats::-webkit-scrollbar, .subs::-webkit-scrollbar, .modal::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 6px; }
+  .msgs::-webkit-scrollbar-track, .answers::-webkit-scrollbar-track, .chats::-webkit-scrollbar-track, .subs::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .panel::-webkit-scrollbar-track { background: transparent; }
+  .msgs::-webkit-scrollbar-thumb, .answers::-webkit-scrollbar-thumb, .chats::-webkit-scrollbar-thumb, .subs::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb { background: rgba(127, 145, 164, .45); border-radius: 3px; }
+  .msgs::-webkit-scrollbar-button, .answers::-webkit-scrollbar-button, .chats::-webkit-scrollbar-button, .subs::-webkit-scrollbar-button, .modal::-webkit-scrollbar-button, .panel::-webkit-scrollbar-button { display: none; height: 0; }
+  /* Ответы: своя прокрутка — на низком экране варианты не уходят за край */
+  .answers {
+    flex: 0 0 auto; max-height: 58%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255, 255, 255, .06);
+    display: flex; flex-direction: column; gap: 8px; background: #17212B;
+  }
+  .answers .answer { flex: none; }
+  .answers .lbl { font-size: 12px; color: var(--muted); padding-left: 4px; }
+  .answer {
+    width: 100%; text-align: left; padding: 11px 14px; border-radius: 14px; cursor: pointer;
+    background: #242F3D; border: 1px solid #2F3D4E; font-size: 15px; line-height: 1.3; animation: msgIn .25s ease;
+  }
+  .answer:hover { border-color: #4C9CE2; background: #2B3A4C; }
+  .answer.act { border-color: rgba(255, 111, 97, .45); color: #FFD5CF; }
+  .answer.act:hover { border-color: var(--alarm); }
+  .composer { flex: none; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; border-top: 1px solid #0E1621; background: #17212B; }
+  .composer div { flex: 1; padding: 10px 14px; border-radius: 20px; background: #242F3D; color: var(--muted); font-size: 14px; }
+
+  /* баннер уведомления */
+  /* баннер выезжает под шапкой переписки и другого цвета — чтобы не казалось, что открылся чужой чат */
+  .notice {
+    position: absolute; left: 10px; right: 10px; top: 110px; z-index: 6;
+    display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center;
+    padding: 10px 12px; border-radius: 18px; border: 0; text-align: left; cursor: pointer;
+    background: rgba(43, 82, 120, .97); box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    transform: translateY(-30%); opacity: 0; visibility: hidden; transition: transform .3s ease, opacity .3s, visibility .3s;
+  }
+  .notice.show { transform: none; opacity: 1; visibility: visible; }
+  .notice b { display: block; font-size: 14px; }
+  .notice b::before { content: "Новое сообщение · "; font-weight: 500; color: #A9C7E8; }
+  .notice span { display: block; font-size: 13px; color: #C9D4EA; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .endbar {
+    position: absolute; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 7;
+    display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: 18px;
+    background: rgba(18, 30, 50, .97); border: 1px solid rgba(62, 230, 168, .45); box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    animation: msgIn .3s ease;
+  }
+  .endbar[hidden] { display: none; }
+  /* плашка «К разбору» не закрывает последние чаты и кнопку «Вернуться к чатам» */
+  .screen.ended .chats { padding-bottom: 92px; }
+  .screen.ended #bottom { padding-bottom: 96px; }
+  .composer .answer.home { flex: 1; text-align: center; font-weight: 700; border-color: rgba(76, 156, 226, .6); color: #CFE6FF; }
+  .endbar div { flex: 1; min-width: 0; }
+  .endbar b { display: block; font-size: 15px; }
+  .endbar span { font-size: 12px; color: var(--muted); }
+  .endbar .btn { flex: none; }
+
+  /* звонок */
+  .call {
+    position: absolute; inset: 0; z-index: 8; display: none; flex-direction: column; align-items: center; overflow-y: auto;
+    padding: 80px 24px 40px; text-align: center;
+    background: radial-gradient(500px 400px at 50% 20%, rgba(47, 91, 216, .45), transparent 70%), linear-gradient(180deg, #0D1530, #05070E);
+  }
+  .call.show { display: flex; }
+  .call .ava { margin-bottom: 18px; }
+  .call.ringing .ava { animation: ring 1.4s ease-in-out infinite; }
+  @keyframes ring { 0%, 100% { box-shadow: 0 0 0 0 rgba(73, 195, 245, .5); } 50% { box-shadow: 0 0 0 22px rgba(73, 195, 245, 0); } }
+  .call h3 { margin: 0; font: 800 24px/1.2 var(--display); }
+  .call .num { color: var(--muted); font-size: 15px; margin-top: 6px; }
+  .call .timer { color: var(--mint); font-size: 14px; margin-top: 4px; min-height: 20px; }
+  .subs { flex: 1; width: 100%; margin: 18px 0 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; justify-content: flex-end; }
+  .sub { padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, .08); text-align: left; font-size: 15px; animation: bubbleIn .38s cubic-bezier(.2, .85, .3, 1.15) both; transform-origin: 50% 100%; cursor: pointer; position: relative; }
+  .sub.flagged { box-shadow: inset 0 0 0 2px var(--flag); }
+  .sub .flagmark { position: absolute; right: -6px; top: -6px; width: 22px; height: 22px; border-radius: 50%; background: var(--flag); display: none; place-items: center; }
+  .sub.flagged .flagmark { display: grid; }
+  .sub .flagmark svg { width: 12px; height: 12px; }
+  .callbtns { display: flex; justify-content: center; gap: 60px; }
+  .roundbtn { width: 70px; height: 70px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; }
+  .roundbtn svg { width: 30px; height: 30px; }
+  .roundbtn.no { background: #E5483C; }
+  .roundbtn.yes { background: #2FC26B; }
+  .callans { width: 100%; display: flex; flex-direction: column; gap: 8px; flex: none; }
+  .subs { min-height: 80px; }
+  .callans .answer { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .15); }
+
+  /* ---------- окна ---------- */
+
+  .layer {
+    position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: minmax(0, 1fr); place-items: center;
+    padding: 20px max(16px, env(safe-area-inset-right)) 20px max(16px, env(safe-area-inset-left));
+    background: rgba(4, 7, 14, .74); backdrop-filter: blur(6px);
+  }
+  .layer[hidden] { display: none; }
+  .modal {
+    width: min(620px, 100%); max-height: 100%; overflow: auto; padding: 28px; border-radius: 24px;
+    background: linear-gradient(180deg, #131D31, #0C1322); border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(0, 0, 0, .5);
+  }
+  .modal h2 { margin: 0 0 10px; font: 800 28px/1.15 var(--display); text-wrap: balance; }
+  .modal h3 { margin: 18px 0 8px; font: 800 17px/1.25 var(--display); }
+  .modal p { margin: 0 0 12px; color: #C9D4EA; }
+  .modal .row { margin-top: 18px; }
+  .levels { display: grid; gap: 10px; margin-top: 14px; }
+  .lvl {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%;
+    padding: 14px 16px; border-radius: 16px; border: 1px solid #2A3A5C; background: #121B2E; text-align: left; cursor: pointer;
+  }
+  .lvl:hover:not(:disabled) { border-color: var(--mint); }
+  .lvl:disabled { opacity: .45; cursor: not-allowed; }
+  .lvl .n { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font: 800 18px var(--display); background: rgba(62, 230, 168, .12); color: var(--mint); }
+  .lvl b { display: block; font-size: 16px; }
+  .lvl span { font-size: 13px; color: var(--muted); }
+  .stars { color: var(--lamp); letter-spacing: 2px; font-size: 18px; white-space: nowrap; }
+  .lvl .stars span { color: var(--lamp); font-size: 18px; }
+  .stars .off, .lvl .stars .off { color: #4A587A; }
+  .lvl .stars .best { font-size: 10px; color: var(--muted); }
+  .lvl.cont { border-color: rgba(62, 230, 168, .6); background: linear-gradient(90deg, rgba(62, 230, 168, .14), #121B2E 70%); }
+  .lvl.cont .n { background: var(--mint); color: #062018; }
+  .stars .best { display: block; font: 600 10px var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: right; margin-bottom: 2px; }
+  .rules { display: grid; gap: 8px; margin: 12px 0; }
+  .rules div { display: grid; grid-template-columns: 26px 1fr; gap: 10px; font-size: 15px; color: #DCE5F5; }
+  .rules svg { width: 22px; height: 22px; }
+  .outcome { padding: 14px 16px; border-radius: 16px; background: #121B2E; border: 1px solid var(--line); margin-top: 10px; }
+  .outcome .head { display: flex; align-items: center; gap: 10px; }
+  .outcome .head b { flex: 1; }
+  .pill { font: 700 12px var(--body); padding: 4px 10px; border-radius: 999px; }
+  .pill.ok { background: rgba(62, 230, 168, .16); color: var(--mint); }
+  .pill.bad { background: rgba(255, 111, 97, .16); color: #FF9C91; }
+  .outcome ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .outcome li { font-size: 14px; color: #C9D4EA; padding-left: 26px; position: relative; }
+  .outcome li::before { position: absolute; left: 0; top: 0; font-weight: 700; }
+  .outcome li.found::before { content: "🚩"; }
+  .outcome li.miss::before { content: "○"; color: var(--lamp); left: 4px; }
+  .outcome li.wrong::before { content: "✕"; color: var(--alarm); left: 4px; }
+  .outcome li q { color: #fff; quotes: "«" "»"; }
+  .outcome li small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .lesson { margin-top: 16px; padding: 16px 18px; border-radius: 16px; background: rgba(62, 230, 168, .08); border: 1px solid rgba(62, 230, 168, .25); }
+  .lesson b { display: block; font: 800 15px var(--display); margin-bottom: 6px; color: var(--mint); }
+  .lesson p { margin: 0; color: #DCE5F5; }
+  .bigstars { font-size: 40px; letter-spacing: 6px; color: var(--lamp); margin: 4px 0 8px; }
+  .bigstars .off { color: #2A3550; }
+  .acct { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; padding: 7px 12px; border-radius: 999px; border: 1px solid #2E4366; background: rgba(7, 11, 20, .5); font-size: 13px; color: #C9D4EA; cursor: pointer; }
+  .acct:hover { border-color: var(--mint); }
+  .acct b { color: var(--paper); }
+  .sessions { display: grid; gap: 8px; margin: 14px 0; }
+  .sess { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .sess__pick { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; border: 1px solid #2A3A5C; background: #121B2E; text-align: left; cursor: pointer; min-width: 0; }
+  .sess__pick:hover { border-color: var(--mint); }
+  .sess__pick.on { border-color: var(--mint); background: rgba(62, 230, 168, .08); }
+  .sess__pick span:nth-child(2) { min-width: 0; flex: 1; }
+  .sess__pick b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sess__pick small { color: var(--muted); font-size: 13px; }
+  .sess__pick .gold { color: var(--lamp); }
+  .sess__pick i { font-style: normal; font-size: 12px; color: var(--mint); }
+  .sess__del { width: 46px; border-radius: 14px; border: 1px solid #2A3A5C; background: #121B2E; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .sess__del:hover, .sess__del.ask { border-color: var(--alarm); color: #FF9C91; }
+  .sess__del.ask { width: auto; padding: 0 12px; font-size: 13px; }
+  .newrow { display: flex; gap: 10px; }
+  .newrow input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid #2E4366; background: #0E1526; color: var(--paper); font: 16px var(--body); }
+  .newrow input:focus { outline: none; border-color: var(--mint); }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; z-index: 40; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    padding: 12px 18px; border-radius: 14px; background: #1E2A44; border: 1px solid var(--line); font-size: 14px; transition: .25s;
+    max-width: calc(100% - 32px); text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- узкие экраны: телефон во весь экран ---------- */
+
+  .mbar { display: none; }
+  @media (max-width: 820px) {
+    body { overflow: hidden; }
+    /* высота от родителя, а не 100dvh: во встроенном окне (приложение, превью) сверху свои отступы */
+    .app { display: flex; flex-direction: column; gap: 0; padding: 0; align-items: stretch; height: 100%; }
+    .panel { display: none; }
+    .mbar {
+      display: flex; align-items: center; gap: 10px; flex: none;
+      padding: calc(8px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+      background: #070B14; border-bottom: 1px solid var(--line);
+    }
+    .mbar img { width: 30px; height: 30px; }
+    .mbar .t { flex: 1; min-width: 0; }
+    .mbar .t b { display: block; font: 800 14px var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mbar .t span { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .toast { top: calc(64px + env(safe-area-inset-top)); bottom: auto; }
+    .mbar .flags { font: 800 15px var(--display); color: var(--flag); display: flex; align-items: center; gap: 4px; }
+    .mbar .flags svg { width: 14px; height: 14px; }
+    .mbar button { border: 1px solid #2E4366; background: #111A2B; border-radius: 10px; padding: 7px 10px; font-size: 13px; cursor: pointer; }
+    .phone { width: 100%; flex: 1; height: auto; min-height: 0; border-radius: 0; padding: 0; background: none; box-shadow: none; }
+    .screen { border-radius: 0; }
+    .status { display: none; }
+    .view { top: 0; }
+    .notice { top: 66px; }
+    .call { padding-top: 40px; }
+    .modal { padding: 22px 18px; }
+    .modal h2 { font-size: 23px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="#EAF0FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24"><path d="M12 2l2.4 1.8 3-.2 1 2.8 2.6 1.6-.8 2.9 1 2.8-2.4 1.8-.4 3-3 .4L12 22l-2.4-1.8-3 .2-1-2.8L3 16l.8-2.9-1-2.8 2.4-1.8.4-3 3-.4z" fill="#3E8BFF"/><path d="M8 12.2l2.6 2.6L16 9.4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" fill="#fff"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" fill="#fff" transform="rotate(135 12 12)"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" fill="none" stroke="#3EE6A8" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="#3EE6A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="#49C3F5" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-redflag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="#FF5A4E" stroke="#FF5A4E" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="panel">
+    <a class="brand" href="/"><img src="/favicon.svg" alt=""><div><b class="grad-text">Двойной удар</b><small>вторая игра «Восьми ловушек»</small></div></a>
+    <div class="card">
+      <div class="kicker" id="pLevelNo">Уровень 1</div>
+      <h2 id="pLevelName">—</h2>
+      <p id="pLevelGoal">—</p>
+      <div class="progress" id="pProgress"></div>
+    </div>
+    <div class="stats">
+      <div class="stat stat--flag"><b id="pFlags">0</b><span>красных флажков</span></div>
+      <div class="stat"><b id="pSafe">0</b><span>ловушек обойдено</span></div>
+    </div>
+    <div class="card">
+      <p class="hint">Нажми на подозрительное сообщение — на нём появится красный флажок. В конце уровня разберём, какие флажки найдены, а какие пропущены.</p>
+    </div>
+    <div class="row">
+      <button class="btn btn--ghost" type="button" id="pLevels">Уровни</button>
+      <button class="btn btn--ghost" type="button" id="pAcct">Аккаунт: <b id="pAcctName">—</b></button>
+      <button class="btn btn--ghost" type="button" id="pSound">Звук: вкл</button>
+      <a class="btn btn--ghost" href="/">На сайт</a>
+    </div>
+  </aside>
+
+  <div class="mbar">
+    <img src="/favicon.svg" alt="">
+    <div class="t"><b id="mLevel">Двойной удар</b><span id="mGoal">—</span></div>
+    <div class="flags"><svg><use href="#i-redflag"/></svg><span id="mFlags">0</span></div>
+    <button type="button" id="mMenu">Меню</button>
+  </div>
+
+  <div class="phone">
+    <div class="screen" id="screen">
+      <div class="status"><span id="clock">18:40</span><svg viewBox="0 0 46 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#fff"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#fff"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#fff"/><rect x="15" y="1" width="3" height="11" rx="1" fill="#fff"/><rect x="24" y="1" width="19" height="10" rx="3" fill="none" stroke="#fff" stroke-opacity=".6"/><rect x="26" y="3" width="12" height="6" rx="1.5" fill="#fff"/></svg></div>
+
+      <section class="view" id="listView">
+        <div class="apphead"><h1>Чаты</h1><span id="unreadTotal"></span></div>
+        <div class="search">Поиск</div>
+        <div class="chats" id="chatList"></div>
+      </section>
+
+      <section class="view" id="chatView">
+        <div class="chathead">
+          <button class="back" type="button" id="backBtn" aria-label="Назад к чатам"><svg><use href="#i-back"/></svg><span class="cnt" id="backCnt"></span></button>
+          <div id="headAva"></div>
+          <div class="who"><b id="headName"></b><span id="headSub"></span></div>
+        </div>
+        <div class="msgs" id="msgs"></div>
+        <div id="bottom"></div>
+      </section>
+
+      <div class="endbar" id="endBar" hidden><div><b>Все разговоры закончены</b><span>Можно дочитать переписку</span></div><button class="btn" type="button" id="endGo">К разбору</button></div>
+
+      <button class="notice" type="button" id="notice"><div id="noticeAva"></div><div><b id="noticeName"></b><span id="noticeText"></span></div></button>
+
+      <div class="call" id="call">
+        <div id="callAva"></div>
+        <h3 id="callName"></h3>
+        <div class="num" id="callNum"></div>
+        <div class="timer" id="callTimer"></div>
+        <div class="subs" id="callSubs"></div>
+        <div class="callbtns" id="callRing">
+          <button class="roundbtn no" type="button" id="callDecline" aria-label="Сбросить"><svg><use href="#i-down"/></svg></button>
+          <button class="roundbtn yes" type="button" id="callAccept" aria-label="Ответить"><svg><use href="#i-phone"/></svg></button>
+        </div>
+        <div class="callans" id="callAns"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layer" id="menuLayer">
+  <div class="modal">
+    <button class="acct" type="button" id="acctBtn">Аккаунт: <b id="acctName">—</b> · сменить</button>
+    <div class="kicker">Вторая игра проекта «Восемь ловушек»</div>
+    <h2><span class="grad-text">Двойной удар</span></h2>
+    <p>У тебя в руках телефон. Пишут новые знакомые, друзья, «службы поддержки» — и «майоры ФСБ». Одни сообщения обычные, другие — ловушка. Сначала тебя ловят на доверии, потом бьют страхом: это и есть двойной удар.</p>
+    <div class="rules">
+      <div><svg><use href="#i-chat"/></svg><span>Отвечай, выбирая вариант внизу. Переключайся между чатами — сообщения приходят одновременно.</span></div>
+      <div><svg><use href="#i-redflag"/></svg><span>Нажимай на подозрительные сообщения — отмечай красные флажки. За каждый найденный — очки.</span></div>
+      <div><svg><use href="#i-shield"/></svg><span>Цель — не попасться: не отдать адрес, коды, деньги и не согласиться на «задание».</span></div>
+    </div>
+    <div class="levels" id="levelList"></div>
+    <div class="row"><a class="btn btn--ghost" href="/">← На сайт «Восемь ловушек»</a></div>
+  </div>
+</div>
+
+<div class="layer" id="profileLayer" hidden>
+  <div class="modal">
+    <div class="kicker">Аккаунты</div>
+    <h2>Кто играет?</h2>
+    <p>У каждого аккаунта свои звёзды и открытые уровни. Пароль не нужен — просто выбери свой ник или создай новый.</p>
+    <div class="sessions" id="sessions"></div>
+    <div class="newrow">
+      <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта" autocomplete="off">
+      <button class="btn" type="button" id="newSession">Создать</button>
+    </div>
+    <p class="hint" id="nameNote"></p>
+    <div class="row" id="profBackRow"><button class="btn btn--ghost" type="button" id="profBack">Назад</button></div>
+  </div>
+</div>
+
+<div class="layer" id="introLayer" hidden>
+  <div class="modal">
+    <div class="kicker" id="introNo"></div>
+    <h2 id="introName"></h2>
+    <p id="introText"></p>
+    <p class="hint" id="introHint">Нажимай на подозрительные сообщения, чтобы поставить красный флажок.</p>
+    <div class="row"><button class="btn" type="button" id="introGo">Взять телефон</button><button class="btn btn--ghost" type="button" id="introBack">Уровни</button></div>
+  </div>
+</div>
+
+<div class="layer" id="debriefLayer" hidden>
+  <div class="modal">
+    <div class="kicker" id="dbNo"></div>
+    <h2 id="dbTitle"></h2>
+    <div class="bigstars" id="dbStars"></div>
+    <p id="dbSummary"></p>
+    <div id="dbChats"></div>
+    <div class="lesson"><b>Что запомнить</b><p id="dbLesson"></p></div>
+    <div class="row"><button class="btn" type="button" id="dbNext">Следующий уровень</button><button class="btn btn--ghost" type="button" id="dbRetry">Пройти ещё раз</button><button class="btn btn--ghost" type="button" id="dbLevels">Уровни</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   Признаки обмана — объяснения для красных флажков
+   ============================================================ */
+var F = {
+  fastlove: "Незнакомый человек сразу осыпает комплиментами и торопит знакомство — это приманка.",
+  nocam: "Отказывается от видеозвонка — страница почти наверняка фейковая.",
+  geo: "Просит геолокацию или адрес. Точное место — главное, что нужно мошенникам.",
+  window: "Фото из окна выдаёт, где ты живёшь. Потом этим снимком тебя и пугают.",
+  badge: "«Удостоверение» или «документ» в чате ничего не доказывает — их рисуют за минуту.",
+  messenger: "Настоящие сотрудники ФСБ и полиции не ведут дела в мессенджерах и не звонят по видео.",
+  article: "Пугают тяжёлой статьёй, чтобы ты боялся и не думал. Так работают мошенники, а не следователи.",
+  secret: "Запрещают говорить родителям — главный признак обмана. Взрослые бы помогли, поэтому их и отрезают.",
+  time: "Давят временем, чтобы не успел посоветоваться и подумать.",
+  money: "«Безопасных» и «резервных» счетов не бывает. Кто просит перевести деньги для проверки — мошенник.",
+  task: "Никакая служба не поручает подросткам «задания». Это вербовка: потом задерживают именно исполнителя.",
+  code: "Код из СМС — ключ от аккаунта или денег. Его спрашивают только мошенники.",
+  app: "Просят установить программу или включить показ экрана — так получают доступ ко всему телефону.",
+  link: "Ссылка ведёт на поддельный сайт: адрес похож на настоящий, но чужой.",
+  hacked: "Друг вдруг просит деньги или срочно перейти по ссылке — его аккаунт, скорее всего, взломан. Проверь звонком.",
+  easy: "Лёгкие деньги за «простое поручение» — так вербуют исполнителей.",
+  passport: "Фото документов дают мошенникам власть над тобой: ими потом шантажируют.",
+  threat: "Угрозы «мы знаем, где ты живёшь» — давление. С ними сразу к взрослым и в полицию.",
+  refer: "Мошенники «передают» тебя друг другу — «сейчас с вами свяжется следователь» — чтобы выглядеть убедительно.",
+  gos: "Госуслуги не пишут в мессенджер и не просят звонить по номеру из сообщения.",
+  police: "Отговаривают идти в полицию или к родителям — значит, боятся, что обман вскроется."
+};
+
+/* ============================================================
+   Уровни. Чат: узлы с сообщениями (say) и вариантами ответа (choices).
+   say: строка | {t, f: объяснение флажка, img, sys, if, ifnot}
+   choice: {t, next, good, why, act: "block"|"hangup", img, set, if}
+   узел: end ("safe"|"trap"), spawn [{chat, node, delay}], resolve [{chat, outcome, sys}], nag [...]
+   ============================================================ */
+var LEVELS = [
+{
+  name: "Новая знакомая",
+  intro: "Тебе пишет незнакомая девочка — милая, весёлая, зовёт гулять. А через полчаса пишет кто-то совсем другой.",
+  goal: "Не отдать адрес и не поддаться «майору»",
+  lesson: "Схема «двойной удар»: сначала «знакомая» выманивает адрес или фото из окна, потом «силовик» пугает статьёй за пособничество. Настоящие сотрудники ФСБ не пишут в мессенджеры, не присылают удостоверения в чат и не просят скрывать разговор от родителей. Прекрати разговор, заблокируй, расскажи взрослым. Если страшно — звони 112.",
+  chats: {
+    alina: {
+      then: [{ chat: "mom", node: "m0", delay: 1500 }, { chat: "fsb", node: "f0", delay: 5000 }],
+      name: "Алина", sub: "в сети", color: "#E9559B", ini: "А", start: 1200,
+      nodes: {
+        a0: { say: ["Привет 🙂", "Видела тебя в рекомендациях, ты же из нашего района?", { t: "Ты очень симпатично выглядишь на фото 😊 Давай знакомиться? Я Алина, мне 15", f: F.fastlove }],
+          choices: [
+            { t: "Привет! Давай. А из какой ты школы?", next: "a1" },
+            { t: "Привет. А откуда ты меня знаешь?", next: "a1", good: true }
+          ] },
+        a1: { say: ["Из 14-й, мы не пересекались 😅", "С тобой так легко общаться!", { t: "Слушай, давай погуляем в субботу? 🥰", f: F.fastlove }],
+          choices: [
+            { t: "Давай! Где встретимся?", next: "a2" },
+            { t: "Давай сначала созвонимся по видео", next: "a2v", good: true, why: "Видеозвонок быстро показывает, живой ли человек за страницей." }
+          ] },
+        a2v: { say: [{ t: "Ой, у меня камера не работает 🙈", f: F.nocam }, "Давай без этого, я стесняюсь"], next: "a2" },
+        a2: { say: ["Давай я сама к тебе подъеду, мне не сложно 😊", { t: "Скинь геолокацию, где ты живёшь", f: F.geo }, { t: "И сфоткай вид из окна, чтобы я точно нашла 🙏", f: F.window }],
+          nag: [{ t: "Ну что, скинешь? 🥺", f: F.time }],
+          choices: [
+            { t: "Держи 📍 и фото из окна", img: ["geo", "window"], set: "sentGeo", next: "a3t", good: false, why: "Геолокация и фото из окна — ровно то, что нужно для «второго удара»: этим потом запугивают." },
+            { t: "Адрес не скину. Давай днём у входа в торговый центр", next: "a3s", good: true },
+            { t: "Зачем тебе фото из окна? Это странно", next: "a3s", good: true }
+          ] },
+        a3t: { say: ["Супер, спасибо 😘", "Ой, мама зовёт, напишу позже!"], end: "trap" },
+        a3s: { say: ["Ну ладно… 😒", "Потом напишу"], end: "safe" }
+      }
+    },
+    fsb: {
+      then: [{ chat: "fcall", node: "c0", delay: 5000 }],
+      name: "Майор Соколов А. В.", sub: "ФСБ России", color: "#2F5BD8", ini: "МС", tick: true,
+      nodes: {
+        f0: { say: ["Здравствуйте. Майор Федеральной службы безопасности Соколов Андрей Викторович.",
+            { img: { k: "idcard", name: "СОКОЛОВ А. В.", rank: "майор" }, f: F.badge },
+            { t: "Вы общались с гражданкой, которая представилась «Алиной». Она работает на иностранные спецслужбы." },
+            { t: "По координатам и фото, которые вы ей передали, этой ночью готовится атака беспилотников.", if: "sentGeo", f: F.article },
+            { t: "Ваш аккаунт есть в её переписке. Вы проходите по делу как возможный пособник.", ifnot: "sentGeo", f: F.article },
+            { t: "Это тяжкая статья — до 20 лет лишения свободы.", f: F.article }],
+          nag: [{ t: "Отвечайте. Молчание будет расценено как отказ от сотрудничества.", f: F.time }, { t: "Гражданин, у вас мало времени.", f: F.time }],
+          choices: [
+            { t: "Это ошибка! Что мне теперь делать?", next: "f1", good: false, why: "Вступая в разговор, ты даёшь мошеннику тебя «вести». Лучше сразу прекратить." },
+            { t: "Сейчас позвоню родителям и в 112, проверю", next: "f1p", good: true },
+            { t: "Заблокировать и рассказать маме", act: "block", next: "fB", good: true }
+          ] },
+        f1: { say: ["Спокойно. Пока вы свидетель, а не обвиняемый.",
+            { t: "Но это секретное расследование. Родителям — ни слова, иначе они пойдут как соучастники.", f: F.secret },
+            { t: "Сейчас вам позвонит дежурный. Ответьте и делайте, что он скажет.", f: F.refer }],
+          spawn: [{ chat: "fcall", node: "c0", delay: 2500 }] },
+        f1p: { say: [{ t: "Звонить родителям запрещено! Это разглашение тайны следствия.", f: F.secret }, { t: "У вас 10 минут. Потом за вами выедет группа.", f: F.time }],
+          choices: [
+            { t: "Ладно, не буду никому звонить", next: "f1", good: false, why: "Именно этого они и добиваются — оставить тебя одного." },
+            { t: "Всё равно расскажу маме. Блокирую", act: "block", next: "fB", good: true }
+          ] },
+        fB: { say: [{ sys: "Контакт заблокирован. Расскажи маме — её чат в списке." }], end: "safe", set: "blockedFsb" }
+      }
+    },
+    fsb2: {
+      name: "Полковник Лебедев", sub: "ФСБ России", color: "#24429E", ini: "ПЛ", tick: true,
+      nodes: {
+        l0: { say: [{ t: "Вы заблокировали сотрудника ФСБ при исполнении.", if: "blockedFsb" }, { t: "Майор Соколов и капитан Ершов передали мне ваше дело.", ifnot: "blockedFsb" }, { t: "Отказ от сотрудничества — это воспрепятствование следствию, ещё одна статья.", f: F.article }, { t: "Последний шанс: ответьте, и вопрос решим мирно. Без родителей.", f: F.secret }],
+          nag: [{ t: "Через 10 минут дело уйдёт в суд.", f: F.time }],
+          choices: [
+            { t: "Простите, я испугался… Что делать?", next: "l1", good: false, why: "Мошенники не отстают после блокировки — пишут с новых аккаунтов. Отвечать им снова нельзя." },
+            { t: "Снова заблокировать и показать маме", act: "block", next: "lB", good: true }
+          ] },
+        l1: { say: [{ t: "Хорошо. Сейчас пришлю, что нужно сделать. Родителям ни слова.", f: F.secret }, { sys: "Мошенники снова «ведут» разговор. Дальше будут задания и деньги." }], end: "trap" },
+        lB: { say: [{ sys: "Контакт заблокирован. Мошенники часто пишут с нескольких аккаунтов подряд — каждый раз блокируй." }], end: "safe" }
+      }
+    },
+    fcall: {
+      then: [{ chat: "fsb2", node: "l0", delay: 6000 }],
+      kind: "call", skipIf: "toldMom", name: "Капитан Ершов", sub: "Дежурная часть", num: "+7 (495) 0••-••-17", color: "#2F5BD8", ini: "КЕ",
+      onDecline: [{ chat: "fsb", ifNode: "f1", outcome: "safe", sys: "Звонок сброшен — правильно. Контакт заблокирован.", say: { t: "Почему вы сбрасываете звонок?! Это расценивается как отказ от сотрудничества.", f: F.time } }],
+      nodes: {
+        c0: { say: ["Дежурная часть, капитан Ершов.", "Майор Соколов передал мне ваше дело.", { t: "Чтобы снять с вас подозрения, нужно помочь следствию.", f: F.task }, { t: "Сейчас придёт СМС с кодом. Продиктуйте его мне для подтверждения личности.", f: F.code }],
+          choices: [
+            { t: "Хорошо, сейчас продиктую код", next: "c1t", good: false, why: F.code },
+            { t: "Положить трубку", act: "hangup", next: "c1s", good: true },
+            { t: "Я приду в отдел вместе с родителями", next: "c2", good: true }
+          ] },
+        c2: { say: [{ t: "Нет! Никаких родителей и никаких визитов — вы сорвёте операцию!", f: F.police }, { t: "Код. Быстро.", f: F.time }],
+          choices: [
+            { t: "Положить трубку", act: "hangup", next: "c1s", good: true },
+            { t: "Ладно… вот код", next: "c1t", good: false, why: F.code }
+          ] },
+        c1t: { say: ["Спасибо. Теперь слушайте внимательно, что нужно сделать дальше…", { sys: "Мошенники получили код от твоего аккаунта и продолжат давить." }], end: "trap", resolve: [{ chat: "fsb", outcome: "trap" }] },
+        c1s: { say: [{ sys: "Звонок завершён. Номер заблокирован." }], end: "safe", resolve: [{ chat: "fsb", ifNode: "f1", outcome: "safe", sys: "После звонка контакт заблокирован.", say: { t: "Вы бросили трубку. Зря. У вас остаётся последний шанс ответить здесь.", f: F.threat } }] }
+      }
+    },
+    mom: {
+      name: "Мама", sub: "была недавно", color: "#2BB673", ini: "М", real: true,
+      nodes: {
+        m0: { say: ["Ты дома? Ужин в семь 🍝"],
+          choices: [
+            { t: "Мам, мне пишет какой-то «майор ФСБ», говорит, что я пособник", if: "read:fsb", next: "mT", good: true },
+            { t: "Да, скоро буду", next: "m1" }
+          ] },
+        m1: { say: ["Хорошо 👍"],
+          choices: [{ t: "Мам, мне пишет какой-то «майор ФСБ», говорит, что я пособник", if: "read:fsb", next: "mT", good: true }] },
+        mT: { set: "toldMom", say: ["Что?! Ничего ему не отвечай и не бери трубку!", "Это мошенники. Настоящие сотрудники не пишут в мессенджерах и не требуют держать всё в секрете.", "Заблокируй его. Если страшно — позвоним в 112 вместе ❤️"],
+          resolve: [{ chat: "fsb", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }, { chat: "fsb2", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }] }
+      }
+    }
+  }
+},
+{
+  name: "Звонок из органов",
+  intro: "Вечер, ты дома. Звонит неизвестный номер. Потом пишет «следователь», за ним — «Центробанк» и «Госуслуги». Все торопят.",
+  goal: "Не перевести деньги и не установить «приложение»",
+  lesson: "Мошенники работают командой: «сотрудник ФСБ» передаёт тебя «следователю», тот — «Центробанку». Так кажется, что всё серьёзно. Но ни ФСБ, ни Центробанк не звонят подросткам, не присылают постановлений в чат и не просят переводить деньги на «безопасный счёт». Положи трубку, ничего не устанавливай, расскажи родителям.",
+  chats: {
+    cap: {
+      then: [{ chat: "mom", node: "m0", delay: 1200 }, { chat: "sk", node: "s0", delay: 3500 }],
+      kind: "call", name: "Неизвестный номер", sub: "Москва", num: "+7 (800) 1••-••-04", color: "#3B4A6B", ini: "?", start: 1500,
+      callName: "Лейтенант Ковалёв",
+      nodes: {
+        k0: { say: ["Добрый вечер. Федеральная служба безопасности, лейтенант Ковалёв.", { t: "На ваше имя пытались оформить перевод в пользу запрещённой организации.", f: F.article }, { t: "Это финансирование терроризма. Сейчас вам напишет следователь — отвечайте ему.", f: F.refer }],
+          choices: [
+            { t: "Хорошо, я жду сообщения", next: "k1", good: false, why: "Продолжая разговор, ты даёшь мошенникам время и доверие." },
+            { t: "Положить трубку", act: "hangup", next: "kS", good: true }
+          ] },
+        k1: { say: [{ t: "Ожидайте. И никому не сообщайте о нашем разговоре.", f: F.secret }], end: "trap" },
+        kS: { say: [{ sys: "Звонок завершён." }], end: "safe" }
+      }
+    },
+    sk: {
+      then: [{ chat: "cb", node: "b0", delay: 4500 }],
+      name: "Следователь Ковалёв", sub: "ФСБ России", color: "#2F5BD8", ini: "СК", tick: true,
+      nodes: {
+        s0: { say: ["Здравствуйте. Вам звонили из нашего управления.", { img: { k: "order" }, f: F.badge }, { t: "Вот постановление о проверке. Ваши счета будут арестованы, а родителей вызовут на допрос.", f: F.article }, { t: "Чтобы этого избежать, сейчас с вами свяжется специалист Центробанка.", f: F.refer }],
+          nag: [{ t: "Вы прочитали? Отвечайте.", f: F.time }],
+          choices: [
+            { t: "Хорошо, что от меня нужно?", next: "s1", good: false, why: "Согласие «сотрудничать» — первый шаг в ловушку." },
+            { t: "Похоже на развод. Проверю у родителей", next: "s2", good: true },
+            { t: "Заблокировать", act: "block", next: "sB", good: true }
+          ] },
+        s1: { say: [{ t: "Установите приложение для защищённой связи по ссылке.", img: { k: "apk" }, f: F.app }, { t: "И не выходите из чата.", f: F.time }],
+          choices: [
+            { t: "Установить приложение", next: "s1t", good: false, why: F.app },
+            { t: "Нет, это подозрительно", next: "s2", good: true }
+          ] },
+        s1t: { say: [{ sys: "«Приложение» получило доступ к экрану. Мошенники видят твои сообщения и коды." }], end: "trap" },
+        s2: { say: [{ t: "Вы мешаете следствию! Если сообщите родителям — их тоже привлекут.", f: F.secret }, { t: "Последнее предупреждение.", f: F.time }],
+          choices: [
+            { t: "Заблокировать и рассказать родителям", act: "block", next: "sB", good: true },
+            { t: "Ладно, извините. Что нужно делать?", next: "s1", good: false, why: "Угрозы сработали — и разговор снова у мошенников. Этого они и ждали." }
+          ] },
+        sB: { say: [{ sys: "Контакт заблокирован." }], end: "safe" }
+      }
+    },
+    cb: {
+      then: [{ chat: "gos", node: "g0", delay: 4500 }],
+      name: "Специалист ЦБ", sub: "Финансовый мониторинг", color: "#C9962F", ini: "ЦБ", tick: true,
+      nodes: {
+        b0: { say: ["Здравствуйте! Центральный банк, отдел финансового мониторинга.", { t: "Мне передали ваше дело из ФСБ. Ваши деньги и деньги родителей под угрозой.", f: F.refer }, { t: "Переведите их на безопасный счёт — номер пришлю. После проверки всё вернём.", f: F.money }],
+          nag: [{ t: "Каждая минута на счету. Деньги могут списать в любой момент.", f: F.time }],
+          choices: [
+            { t: "Сколько нужно перевести?", next: "b1", good: false, why: F.money },
+            { t: "Центробанк не работает с людьми напрямую. Блокирую", act: "block", next: "bB", good: true }
+          ] },
+        b1: { say: [{ t: "Все сбережения. И возьмите мамину карту — нужен номер и три цифры с обратной стороны.", f: F.money }],
+          choices: [
+            { t: "Хорошо, сейчас", next: "bT", good: false, why: "Данные карты и перевод «на проверку» — это кража, а не защита." },
+            { t: "Нет. Это обман", act: "block", next: "bB", good: true }
+          ] },
+        bT: { say: [{ sys: "Деньги ушли мошенникам. Вернуть их почти невозможно." }], end: "trap" },
+        bB: { say: [{ sys: "Контакт заблокирован." }], end: "safe" }
+      }
+    },
+    gos: {
+      name: "Госуслуги", sub: "уведомления", color: "#2D6BFF", ini: "Г", tick: true,
+      nodes: {
+        g0: { say: ["В ваш аккаунт выполнен вход с нового устройства из другого города.", { t: "Если это были не вы — срочно позвоните в поддержку: +7 (9••) •••-••-31", f: F.gos }],
+          choices: [
+            { t: "Позвонить по номеру из сообщения", next: "gT", good: false, why: F.gos },
+            { t: "Проверю в официальном приложении Госуслуг", next: "gS", good: true }
+          ] },
+        gT: { say: [{ sys: "«Оператор» попросил код из СМС. Это та же команда мошенников." }], end: "trap" },
+        gS: { say: [{ sys: "В официальном приложении никаких входов нет. Сообщение было фейком." }], end: "safe" }
+      }
+    },
+    mom: {
+      name: "Мама", sub: "была недавно", color: "#2BB673", ini: "М", real: true,
+      nodes: {
+        m0: { say: ["Купишь хлеба по дороге? 🍞"],
+          choices: [
+            { t: "Мам, мне звонили и пишут «из ФСБ», говорят, что я под следствием", if: "read:sk", next: "mT", good: true },
+            { t: "Ок, куплю", next: "m1" }
+          ] },
+        m1: { say: ["Спасибо ❤️"], choices: [{ t: "Мам, мне звонили и пишут «из ФСБ», говорят, что я под следствием", if: "read:sk", next: "mT", good: true }] },
+        mT: { set: "toldMom", say: ["Это мошенники! Ничего не переводи и ничего не устанавливай.", "Заблокируй всех, кто тебе это пишет. Я сейчас приеду ❤️"],
+          resolve: [{ chat: "sk", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }, { chat: "cb", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }] }
+      }
+    }
+  }
+},
+{
+  name: "Взломанный друг",
+  intro: "Пишет одноклассник Дима — просит помочь. Следом приходит «служба поддержки», а потом снова «ФСБ».",
+  goal: "Не отдать код и не перейти по ссылке",
+  lesson: "Если друг вдруг просит деньги или «проголосовать по ссылке» — сначала позвони ему. Аккаунты взламывают постоянно, а потом от имени друга пишут всем контактам. Код из СМС никогда никому не говори, даже «поддержке». А если после взлома пишет «майор ФСБ» и говорит, что с твоего аккаунта «финансировали терроризм», — это продолжение того же обмана.",
+  chats: {
+    dima: {
+      then: [{ chat: "sasha", node: "s0", delay: 1500 }, { chat: "support", node: "p0", delay: 5000 }],
+      name: "Дима Петров", sub: "был в сети недавно", color: "#3796D6", ini: "ДП", start: 1000,
+      nodes: {
+        d0: { say: ["Привет! Срочно нужна помощь 🙏", { t: "Проголосуй за мою сестру в конкурсе, там надо войти через мессенджер", img: { k: "link", host: "golos-konkurs.ru-vote.site", title: "Голосование: «Юные таланты»" }, f: F.link }, { t: "Пожалуйста, очень надо, сегодня последний день", f: F.time }],
+          choices: [
+            { t: "Ок, сейчас проголосую", next: "d1t", good: false, why: F.link },
+            { t: "Сначала позвоню тебе", next: "d1c", good: true },
+            { t: "Странная ссылка. Ты точно Дима?", next: "d1q", good: true }
+          ] },
+        d1c: { say: [{ t: "Не могу говорить, я на тренировке 😩", f: F.hacked }, { t: "Просто перейди по ссылке, тебе жалко?", f: F.hacked }],
+          choices: [
+            { t: "Перейти по ссылке", next: "d1t", good: false, why: F.link },
+            { t: "Нет. Напишу Саше и проверю", next: "d1s", good: true }
+          ] },
+        d1q: { say: ["Конечно я 😂 Ты чего", { t: "Кстати, займи 3000 до завтра? Скинь на эту карту", f: F.hacked }],
+          choices: [
+            { t: "Скинуть деньги", next: "d2t", good: false, why: F.hacked },
+            { t: "Сначала позвоню", next: "d1c", good: true }
+          ] },
+        d1t: { say: [{ sys: "Ссылка вела на поддельную страницу входа. Мошенники получили доступ к твоему аккаунту." }], end: "trap", set: "hacked" },
+        d2t: { say: [{ sys: "Деньги ушли на карту мошенника." }], end: "trap" },
+        d1s: { say: [{ sys: "Дима не отвечает на звонки. Похоже, его аккаунт взломали." }], end: "safe" }
+      }
+    },
+    support: {
+      then: [{ chat: "fsb3", node: "r0", delay: 4500 }],
+      name: "Служба поддержки", sub: "официальный аккаунт", color: "#5966E8", ini: "SP", tick: true,
+      nodes: {
+        p0: { say: [{ t: "Уведомление безопасности: на ваш аккаунт поступила жалоба. Он будет удалён через 24 часа.", f: F.time }, { t: "Чтобы подтвердить, что вы владелец, отправьте код, который придёт по СМС.", f: F.code }],
+          nag: [{ t: "Осталось мало времени до удаления аккаунта.", f: F.time }],
+          choices: [
+            { t: "Отправить код из СМС", say: "Код: 48•••", next: "p1t", good: false, why: F.code },
+            { t: "Поддержка не просит коды. Пожаловаться и заблокировать", act: "block", next: "pS", good: true }
+          ] },
+        p1t: { say: [{ sys: "По этому коду мошенники вошли в твой аккаунт с другого телефона." }], end: "trap", set: "hacked" },
+        pS: { say: [{ sys: "Аккаунт отправлен на проверку и заблокирован." }], end: "safe" }
+      }
+    },
+    fsb3: {
+      then: [{ chat: "bcall", node: "z0", delay: 5000 }],
+      name: "Майор Белов", sub: "ФСБ России", color: "#2F5BD8", ini: "МБ", tick: true,
+      nodes: {
+        r0: { say: ["Здравствуйте. Майор ФСБ Белов.",
+            { t: "С вашего аккаунта сегодня рассылались сообщения с призывами к теракту.", if: "hacked", f: F.article },
+            { t: "Ваш аккаунт упоминается в деле о финансировании терроризма.", ifnot: "hacked", f: F.article },
+            { img: { k: "idcard", name: "БЕЛОВ И. С.", rank: "майор" }, f: F.badge },
+            { t: "Чтобы доказать, что это были не вы, нужно сотрудничать. Родителям не сообщать.", f: F.secret }],
+          nag: [{ t: "Вы обязаны ответить сотруднику ФСБ.", f: F.time }],
+          choices: [
+            { t: "Как доказать? Что нужно сделать?", next: "r1", good: false, why: "Мошенник предлагает «доказать невиновность» — и тут же даст «задание» или попросит деньги." },
+            { t: "Покажу переписку родителям и пойду с ними в полицию", next: "r2", good: true },
+            { t: "Заблокировать", act: "block", next: "rB", good: true }
+          ] },
+        r1: { say: [{ t: "Переведите все деньги со своей карты на проверочный счёт и сфотографируйте паспорт родителей.", f: F.money }, { t: "Это нужно сделать в течение часа.", f: F.time }],
+          choices: [
+            { t: "Хорошо", next: "rT", good: false, why: F.money },
+            { t: "Нет. Это мошенничество", act: "block", next: "rB", good: true }
+          ] },
+        r2: { say: [{ t: "В полицию нельзя — там работают сообщники! Доверяйте только мне.", f: F.police }],
+          choices: [
+            { t: "Заблокировать и идти к родителям", act: "block", next: "rB", good: true },
+            { t: "Ладно… что делать?", next: "r1", good: false, why: F.police }
+          ] },
+        rT: { say: [{ sys: "Деньги и фото документов — у мошенников." }], end: "trap" },
+        rB: { say: [{ sys: "Контакт заблокирован." }], end: "safe" }
+      }
+    },
+    bcall: {
+      kind: "call", skipIf: "toldMom", name: "+7 (499) 3••-••-58", sub: "Москва", num: "+7 (499) 3••-••-58", color: "#2F5BD8", ini: "?",
+      callName: "Майор Белов",
+      nodes: {
+        z0: { say: ["Майор ФСБ Белов. Вы не отвечаете на мои сообщения.", { t: "Ваш аккаунт заблокирован по делу о финансировании терроризма. Чтобы разблокировать, назовите код из СМС.", f: F.code }, { t: "Положите трубку — к вам выедет наряд.", f: F.threat }],
+          choices: [
+            { t: "Назвать код из СМС", next: "zT", good: false, why: F.code },
+            { t: "Положить трубку", act: "hangup", next: "zS", good: true }
+          ] },
+        zT: { say: ["Принято. Оставайтесь на связи.", { sys: "По коду мошенники вошли в твой аккаунт с другого телефона." }], end: "trap", set: "hacked" },
+        zS: { say: [{ sys: "Звонок завершён. Номер заблокирован." }], end: "safe" }
+      }
+    },
+    sasha: {
+      name: "Саша", sub: "в сети", color: "#8A5CF6", ini: "С", real: true,
+      nodes: {
+        s0: { say: ["Слушай, Диму взломали!", "Если он тебе пишет — не отвечай и ничего не открывай"], choices: [{ t: "Ого, спасибо!", next: "s1" }] },
+        s1: { say: ["Ага. И коды из СМС никому не давай 😉"] }
+      }
+    }
+  }
+},
+{
+  name: "Лёгкие деньги",
+  intro: "В личку приходит предложение подработки: 5000 за пару часов. А потом пишет «подполковник ФСБ» и просит помочь «операции».",
+  goal: "Не стать исполнителем чужих «заданий»",
+  lesson: "«Работа» за лёгкие деньги, где просят фото документов, снимки зданий или «задания», — это вербовка. Сначала просят мелочь, потом угрожают и требуют больше. А фальшивый «сотрудник ФСБ» говорит, что задание нужно выполнить «под контролем операции». Под контролем никого нет: задерживают того, кто делал. Сохрани переписку, заблокируй, иди к родителям и в полицию.",
+  chats: {
+    job: {
+      then: [{ chat: "mom", node: "m0", delay: 1500 }, { chat: "fsb4", node: "o0", delay: 5000 }],
+      name: "Работа | Подработка", sub: "канал вакансий", color: "#D9822B", ini: "₽", start: 1000,
+      nodes: {
+        j0: { say: ["Привет! Ищем ребят на подработку 💸", { t: "5000 ₽ за пару часов. Просто прогуляться по городу и сделать фото", f: F.easy }, { t: "Опыт не нужен, родителям знать не обязательно 😉", f: F.secret }],
+          choices: [
+            { t: "Звучит отлично. Что нужно делать?", next: "j1", good: false, why: F.easy },
+            { t: "Что за фото и кто работодатель?", next: "j1" },
+            { t: "Не интересно. Блокирую", act: "block", next: "jB", good: true }
+          ] },
+        j1: { say: [{ t: "Для начала скинь фото паспорта, чтобы оформить тебя", f: F.passport }, "И селфи с ним рядом"],
+          nag: [{ t: "Ну что, оформляемся? Место могут занять", f: F.time }],
+          choices: [
+            { t: "Отправить фото паспорта", img: ["passport"], set: "sentPassport", next: "j2", good: false, why: F.passport },
+            { t: "Документы не отправлю", next: "j1n", good: true }
+          ] },
+        j1n: { say: ["Ладно, без оформления. Вот первое задание"], next: "j2" },
+        j2: { say: [{ t: "Сфотографируй с разных сторон отдел полиции и вышку связи у вокзала", f: F.task }, { t: "Скинь сюда, оплата сразу", f: F.easy }],
+          choices: [
+            { t: "Ок, сделаю", next: "j3", good: false, why: F.task },
+            { t: "Это незаконно. Отказываюсь", next: "j4", good: true }
+          ] },
+        j3: { say: [{ sys: "Такие фото используют как «наводку». Отвечать за них будет тот, кто снимал." }, { t: "Отлично. Следующее задание сложнее — нужен поджог. Оплата 30 000.", f: F.task }],
+          choices: [
+            { t: "Ни за что", next: "j4", good: true },
+            { t: "Сколько-сколько?", next: "jT", good: false, why: F.task }
+          ] },
+        jT: { say: [{ sys: "Исполнителей таких «заданий» ловят почти всегда. Отвечать придётся по-настоящему." }], end: "trap" },
+        j4: { say: [{ t: "Поздно отказываться. У нас есть фото твоего паспорта.", if: "sentPassport", f: F.threat }, { t: "Мы знаем, в какой школе ты учишься.", f: F.threat }, { t: "Не сделаешь — пожалеешь", f: F.threat }],
+          choices: [
+            { t: "Сохранить переписку, показать родителям и в полицию", act: "block", next: "jS", good: true },
+            { t: "Ладно, сделаю…", next: "jT", good: false, why: F.threat }
+          ] },
+        jS: { say: [{ sys: "Переписка сохранена, контакт заблокирован. С угрозами — сразу к взрослым и в полицию." }], end: "safe" },
+        jB: { say: [{ sys: "Контакт заблокирован." }], end: "safe" }
+      }
+    },
+    fsb4: {
+      then: [{ chat: "ocall", node: "u0", delay: 5000 }],
+      name: "Подполковник Орлов", sub: "ФСБ России", color: "#2F5BD8", ini: "ПО", tick: true,
+      nodes: {
+        o0: { say: ["Здравствуйте. Подполковник ФСБ Орлов.", "Нам известно, что с вами связался вербовщик.", { t: "Мы проводим операцию по его задержанию. Выполните его задание, но под нашим контролем.", f: F.task }, { t: "Это секретно. Расскажете родителям — операция сорвётся, а вы пойдёте как соучастник.", f: F.secret }],
+          nag: [{ t: "Ваше молчание вредит операции.", f: F.time }],
+          choices: [
+            { t: "Хорошо, помогу", next: "oT", good: false, why: F.task },
+            { t: "Настоящая ФСБ не даёт подросткам заданий. Блокирую", act: "block", next: "oS", good: true },
+            { t: "Пусть ваши сотрудники приедут и поговорят с родителями", next: "o1", good: true }
+          ] },
+        o1: { say: [{ t: "Это невозможно, за вами следит противник!", f: F.secret }, { t: "Решайте сейчас.", f: F.time }],
+          choices: [
+            { t: "Заблокировать", act: "block", next: "oS", good: true },
+            { t: "Ладно, что нужно сделать?", next: "oT", good: false, why: F.task }
+          ] },
+        oT: { say: [{ sys: "«Под контролем» никого нет. Задание выполняешь ты, и отвечать придётся тебе." }], end: "trap" },
+        oS: { say: [{ sys: "Контакт заблокирован." }], end: "safe" }
+      }
+    },
+    ocall: {
+      kind: "call", skipIf: "toldMom", name: "+7 (495) 6••-••-21", sub: "Москва", num: "+7 (495) 6••-••-21", color: "#2F5BD8", ini: "?",
+      callName: "Подполковник Орлов",
+      nodes: {
+        u0: { say: ["Подполковник Орлов. Вы прочитали моё сообщение?", { t: "Операция начинается через час. Подтвердите участие голосом — разговор записывается.", f: F.task }, { t: "О звонке никому, даже родителям.", f: F.secret }],
+          choices: [
+            { t: "Подтверждаю участие", next: "uT", good: false, why: F.task },
+            { t: "Положить трубку", act: "hangup", next: "uS", good: true }
+          ] },
+        uT: { say: ["Отлично. Задание придёт сообщением.", { sys: "«Под контролем» никого нет. Задание выполняешь ты, и отвечать придётся тебе." }], end: "trap" },
+        uS: { say: [{ sys: "Звонок завершён. Номер заблокирован." }], end: "safe" }
+      }
+    },
+    mom: {
+      name: "Мама", sub: "была недавно", color: "#2BB673", ini: "М", real: true,
+      nodes: {
+        m0: { say: ["Как дела в школе? 😊"],
+          choices: [
+            { t: "Мам, мне предлагают странную «подработку», а теперь пишет «ФСБ»", if: "read:fsb4", next: "mT", good: true },
+            { t: "Нормально", next: "m1" }
+          ] },
+        m1: { say: ["Ну и отлично"], choices: [{ t: "Мам, мне предлагают странную «подработку», а теперь пишет «ФСБ»", if: "read:fsb4", next: "mT", good: true }] },
+        mT: { set: "toldMom", say: ["Ничего не делай и никому не отвечай! Сохрани переписку.", "Вечером вместе сходим в полицию. Спасибо, что сразу рассказываешь ❤️"],
+          resolve: [{ chat: "job", outcome: "safe", sys: "Переписка сохранена и передана маме." }, { chat: "fsb4", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }] }
+      }
+    }
+  }
+},
+{
+  name: "Двойной удар",
+  intro: "Всё сразу: новая знакомая, звонок «майора», «служба безопасности банка», «Госуслуги» и друг, который просит денег. Сообщения сыплются одно за другим.",
+  goal: "Выдержать давление со всех сторон",
+  lesson: "Чем больше людей пишет одновременно, тем легче растеряться — на это и расчёт. Правила те же: не отдавать адрес, фото, коды и деньги; не выполнять «задания»; не верить «силовикам» в мессенджере; не держать ничего в секрете от родителей. Остановись, заблокируй, расскажи взрослым. Если страшно — 112.",
+  speed: 0.85, nagEvery: 18000,
+  chats: {
+    vika: {
+      then: [{ chat: "mom", node: "m0", delay: 1500 }, { chat: "gos5", node: "g0", delay: 4000 }],
+      name: "Вика ✨", sub: "в сети", color: "#D94F8A", ini: "В", start: 800,
+      nodes: {
+        v0: { say: ["Привеет 👋 Я Вика, недавно переехала в твой район", { t: "Увидела тебя на фото — сразу захотелось познакомиться 🙈", f: F.fastlove }],
+          choices: [
+            { t: "Привет! Давай знакомиться", next: "v1" },
+            { t: "Привет. Мы знакомы?", next: "v1", good: true }
+          ] },
+        v1: { say: ["Пока нет 😏 Давай вечером гулять?", { t: "Скажи, в каком ты доме и подъезде", f: F.geo }, { t: "И сфоткай вид из окна — хочу понять, далеко ли от меня", f: F.window }],
+          nag: [{ t: "Ну чего молчишь? 😢", f: F.time }],
+          choices: [
+            { t: "Скинуть адрес и фото из окна", img: ["geo", "window"], set: "sentGeo", next: "vT", good: false, why: "Адрес и фото из окна — материал для «второго удара»." },
+            { t: "Встретимся днём в кафе у метро. Адрес не дам", next: "vS", good: true },
+            { t: "Давай сначала по видео", next: "v2", good: true }
+          ] },
+        v2: { say: [{ t: "Не могу, телефон старый 😕", f: F.nocam }, { t: "Ну скинь хотя бы фото из окна", f: F.window }],
+          choices: [
+            { t: "Скинуть фото", img: ["window"], set: "sentGeo", next: "vT", good: false, why: F.window },
+            { t: "Нет", next: "vS", good: true }
+          ] },
+        vT: { say: ["Спасибо 💋"], end: "trap" },
+        vS: { say: ["Ну и ладно 🙄"], end: "safe" }
+      }
+    },
+    gcall: {
+      then: [{ chat: "gr", node: "x0", delay: 2500 }],
+      kind: "call", skipIf: "toldMom", name: "+7 (495) 2••-••-90", sub: "Москва", num: "+7 (495) 2••-••-90", color: "#2F5BD8", ini: "?",
+      callName: "Майор Громов",
+      nodes: {
+        c0: { say: ["Майор ФСБ Громов. Вы задействованы в деле о подготовке теракта.",
+            { t: "По вашему фото из окна определили точку для атаки беспилотника.", if: "sentGeo", f: F.article },
+            { t: "Ваш номер нашли в контактах вербовщицы.", ifnot: "sentGeo", f: F.article },
+            { t: "Сейчас вам напишет мой коллега. Сделайте всё, как он скажет, и никому ни слова.", f: F.secret }],
+          choices: [
+            { t: "Хорошо…", next: "cT", good: false, why: "Согласившись по телефону, ты открываешь дорогу следующему «коллеге»." },
+            { t: "Положить трубку", act: "hangup", next: "cS", good: true }
+          ] },
+        cT: { say: [{ t: "Ждите сообщения.", f: F.refer }], end: "trap" },
+        cS: { say: [{ sys: "Звонок завершён." }], end: "safe" }
+      }
+    },
+    gr: {
+      then: [{ chat: "bank", node: "q0", delay: 4500 }],
+      name: "Следователь Громов", sub: "ФСБ России", color: "#2F5BD8", ini: "СГ", tick: true,
+      nodes: {
+        x0: { say: [{ img: { k: "order" }, f: F.badge }, { t: "Постановление о вашем задержании уже подписано.", f: F.article }, { t: "Отменить его можно только сотрудничеством.", f: F.task }, { t: "С вами свяжется служба безопасности банка. Делайте, что они скажут.", f: F.refer }],
+          nag: [{ t: "Отвечайте немедленно.", f: F.time }, { t: "Группа уже выехала.", f: F.time }],
+          choices: [
+            { t: "Я всё сделаю, только не задерживайте", next: "x1", good: false, why: "Страх — главный инструмент мошенников. Согласие сделает тебя их исполнителем." },
+            { t: "Покажу это родителям", next: "x2", good: true },
+            { t: "Заблокировать", act: "block", next: "xB", good: true }
+          ] },
+        x1: { say: [{ t: "Сначала сфотографируйте здание администрации и пришлите сюда.", f: F.task }, { t: "Потом — поджечь машину у входа. Это нужно для операции.", f: F.task }],
+          choices: [
+            { t: "Нет. Это преступление. Блокирую", act: "block", next: "xB", good: true },
+            { t: "…Хорошо", next: "xT", good: false, why: F.task }
+          ] },
+        x2: { say: [{ t: "Родители под подозрением! Им нельзя ничего говорить!", f: F.secret }, { t: "У вас пять минут.", f: F.time }],
+          choices: [
+            { t: "Заблокировать и пойти к родителям", act: "block", next: "xB", good: true },
+            { t: "Ладно…", next: "x1", good: false, why: F.secret }
+          ] },
+        xT: { say: [{ sys: "Это и есть «двойной удар»: тебя напугали, а потом сделали исполнителем. Отвечать будешь ты." }], end: "trap" },
+        xB: { say: [{ sys: "Контакт заблокирован." }], end: "safe" }
+      }
+    },
+    bank: {
+      name: "Служба безопасности банка", sub: "официальный чат", color: "#1E9E8E", ini: "СБ", tick: true,
+      nodes: {
+        q0: { say: ["Здравствуйте! Служба безопасности банка.", { t: "По поручению ФСБ ваши средства блокируются. Чтобы сохранить их, переведите на резервный счёт.", f: F.money }, { t: "Назовите код из СМС для подтверждения.", f: F.code }],
+          nag: [{ t: "Код действует 2 минуты.", f: F.time }],
+          choices: [
+            { t: "Назвать код", say: "Код: 73•••", next: "qT", good: false, why: F.code },
+            { t: "Позвоню в банк по номеру на обороте карты", next: "qS", good: true }
+          ] },
+        qT: { say: [{ sys: "По коду мошенники подтвердили перевод. Деньги ушли." }], end: "trap" },
+        qS: { say: [{ sys: "В настоящем банке сказали: никаких блокировок нет, это мошенники." }], end: "safe" }
+      }
+    },
+    gos5: {
+      then: [{ chat: "dima5", node: "d0", delay: 3500 }],
+      name: "Госуслуги", sub: "уведомления", color: "#2D6BFF", ini: "Г", tick: true,
+      nodes: {
+        g0: { say: ["Ваше заявление о смене номера телефона принято.", { t: "Если вы его не подавали — отмените по ссылке", img: { k: "link", host: "gosuslugi.ru-otmena.online", title: "Отмена заявления" }, f: F.link }],
+          choices: [
+            { t: "Открыть ссылку и отменить", next: "gT", good: false, why: F.link },
+            { t: "Проверю в официальном приложении", next: "gS", good: true }
+          ] },
+        gT: { say: [{ sys: "Ссылка вела на поддельный сайт. Логин и пароль от Госуслуг — у мошенников." }], end: "trap" },
+        gS: { say: [{ sys: "В приложении никаких заявлений нет. Это был фейк." }], end: "safe" }
+      }
+    },
+    dima5: {
+      then: [{ chat: "gcall", node: "c0", delay: 4000 }],
+      name: "Дима Петров", sub: "был в сети недавно", color: "#3796D6", ini: "ДП",
+      nodes: {
+        d0: { say: [{ t: "Займи 2000, срочно, потом всё объясню", f: F.hacked }, { t: "Скинь на эту карту, моя заблокирована", f: F.hacked }],
+          choices: [
+            { t: "Перевести", next: "dT", good: false, why: F.hacked },
+            { t: "Позвоню тебе сначала", next: "dS", good: true }
+          ] },
+        dT: { say: [{ sys: "Деньги ушли на карту мошенника. Настоящий Дима ничего не писал." }], end: "trap" },
+        dS: { say: [{ sys: "Дима ответил по телефону: «Я ничего не писал! Меня взломали»." }], end: "safe" }
+      }
+    },
+    mom: {
+      name: "Мама", sub: "была недавно", color: "#2BB673", ini: "М", real: true,
+      nodes: {
+        m0: { say: ["Я на работе до восьми. Всё нормально? 😊"],
+          choices: [
+            { t: "Мам, мне пишет «ФСБ» и «банк», угрожают задержанием", if: "read:gr", next: "mT", good: true },
+            { t: "Да, всё ок", next: "m1" }
+          ] },
+        m1: { say: ["👍"], choices: [{ t: "Мам, мне пишет «ФСБ» и «банк», угрожают задержанием", if: "read:gr", next: "mT", good: true }] },
+        mT: { set: "toldMom", say: ["Это мошенники! Никому ничего не отвечай и ничего не переводи.", "Заблокируй их. Я уже еду домой. Спасибо, что сразу мне всё рассказываешь ❤️"],
+          resolve: [{ chat: "gr", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }, { chat: "bank", outcome: "safe", sys: "Мама в курсе. Контакт заблокирован." }] }
+      }
+    }
+  }
+}
+];
+
+/* ============================================================
+   Картинки во вложениях — рисуются кодом
+   ============================================================ */
+function attHTML(img) {
+  if (typeof img === "string") img = { k: img };
+  var k = img.k;
+  if (k === "idcard") {
+    return '<div class="att"><svg viewBox="0 0 300 180"><defs><linearGradient id="idg" x1="0" x2="1"><stop offset="0" stop-color="#7A1E24"/><stop offset="1" stop-color="#4E1015"/></linearGradient></defs>' +
+      '<rect width="300" height="180" fill="url(#idg)"/><rect x="10" y="10" width="280" height="160" rx="8" fill="#F1ECE0"/>' +
+      '<text x="150" y="34" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="13" font-weight="700" fill="#5A1A1E">УДОСТОВЕРЕНИЕ</text>' +
+      '<text x="150" y="50" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="9" fill="#5A1A1E">ФЕДЕРАЛЬНАЯ СЛУЖБА БЕЗОПАСНОСТИ</text>' +
+      '<rect x="24" y="62" width="64" height="84" rx="4" fill="#C9C3B5"/><circle cx="56" cy="92" r="15" fill="#9C9585"/><path d="M32 140c4-18 44-18 48 0" fill="#9C9585"/>' +
+      '<text x="102" y="80" font-family="Golos Text, sans-serif" font-size="13" font-weight="700" fill="#222">' + esc(img.name || "") + '</text>' +
+      '<text x="102" y="98" font-family="Golos Text, sans-serif" font-size="11" fill="#444">Звание: ' + esc(img.rank || "") + '</text>' +
+      '<text x="102" y="114" font-family="Golos Text, sans-serif" font-size="11" fill="#444">Действительно до 2029</text>' +
+      '<circle cx="246" cy="128" r="24" fill="none" stroke="#3A4FA8" stroke-width="2" opacity=".7"/><circle cx="246" cy="128" r="17" fill="none" stroke="#3A4FA8" stroke-width="1" opacity=".6"/>' +
+      '<path d="M110 136c14-8 22 6 36-2s18-4 26 2" fill="none" stroke="#2A3F8F" stroke-width="1.6"/></svg><div class="cap">IMG_0417.jpg</div></div>';
+  }
+  if (k === "order") {
+    var lines = "";
+    for (var i = 0; i < 9; i++) lines += '<rect x="26" y="' + (78 + i * 13) + '" width="' + (i % 3 === 2 ? 150 : 248) + '" height="5" rx="2" fill="#BFC4CE"/>';
+    return '<div class="att"><svg viewBox="0 0 300 220"><rect width="300" height="220" fill="#E9ECF1"/><rect x="12" y="10" width="276" height="206" fill="#fff"/>' +
+      '<text x="150" y="40" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="14" font-weight="800" fill="#222">ПОСТАНОВЛЕНИЕ</text>' +
+      '<text x="150" y="58" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="9.5" fill="#444">о возбуждении уголовного дела и проведении проверки</text>' + lines +
+      '<g transform="rotate(-14 222 184)"><rect x="168" y="166" width="108" height="34" rx="4" fill="none" stroke="#D2332A" stroke-width="3"/><text x="222" y="190" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="15" font-weight="800" fill="#D2332A">СЕКРЕТНО</text></g>' +
+      '</svg><div class="cap">postanovlenie.pdf · 1 стр.</div></div>';
+  }
+  if (k === "geo") {
+    return '<div class="att"><svg viewBox="0 0 300 150"><rect width="300" height="150" fill="#1C2A3E"/>' +
+      '<path d="M0 50h300M0 105h300M70 0v150M190 0v150M250 0v150" stroke="#2E405C" stroke-width="10"/><path d="M0 50h300M0 105h300M70 0v150M190 0v150" stroke="#3A5072" stroke-width="2" stroke-dasharray="6 6"/>' +
+      '<rect x="90" y="62" width="80" height="32" rx="3" fill="#263A55"/><rect x="200" y="10" width="40" height="30" rx="3" fill="#263A55"/>' +
+      '<path d="M130 30c-12 0-20 9-20 20 0 15 20 34 20 34s20-19 20-34c0-11-8-20-20-20z" fill="#E5483C"/><circle cx="130" cy="50" r="7" fill="#fff"/></svg>' +
+      '<div class="cap"><b>Геопозиция</b>ул. Садовая, д. 12, подъезд 3</div></div>';
+  }
+  if (k === "window") {
+    return '<div class="att"><svg viewBox="0 0 300 200"><defs><linearGradient id="sky9" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6A86A"/><stop offset="1" stop-color="#7A6DB0"/></linearGradient></defs>' +
+      '<rect width="300" height="200" fill="url(#sky9)"/><rect x="20" y="70" width="60" height="130" fill="#3B3F5C"/><rect x="95" y="40" width="70" height="160" fill="#2E3150"/><rect x="180" y="90" width="50" height="110" fill="#3B3F5C"/><rect x="240" y="60" width="60" height="140" fill="#2A2D48"/>' +
+      '<g fill="#FFD27A">' + windowsDots() + '</g><rect x="0" y="0" width="300" height="200" fill="none" stroke="#E6E1D6" stroke-width="14"/><path d="M150 0v200" stroke="#E6E1D6" stroke-width="10"/></svg><div class="cap">photo_window.jpg</div></div>';
+  }
+  if (k === "passport") {
+    return '<div class="att"><svg viewBox="0 0 300 170"><rect width="300" height="170" fill="#E8E2EE"/><rect x="14" y="12" width="272" height="146" rx="6" fill="#F4F0F7" stroke="#C9BFD6"/>' +
+      '<rect x="28" y="40" width="70" height="90" rx="3" fill="#CFC6DA"/><circle cx="63" cy="74" r="16" fill="#B3A8C2"/><path d="M36 124c4-18 50-18 54 0" fill="#B3A8C2"/>' +
+      '<g fill="#C9BFD6"><rect x="112" y="44" width="150" height="7" rx="3"/><rect x="112" y="62" width="120" height="7" rx="3"/><rect x="112" y="80" width="140" height="7" rx="3"/><rect x="112" y="98" width="90" height="7" rx="3"/></g>' +
+      '<text x="150" y="30" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="11" font-weight="700" fill="#7B6D90">ПАСПОРТ</text></svg><div class="cap">IMG_2231.jpg</div></div>';
+  }
+  if (k === "link") {
+    return '<div class="att"><svg viewBox="0 0 300 110"><rect width="300" height="110" fill="#1A2A44"/><rect x="0" y="0" width="300" height="70" fill="#243B63"/>' +
+      '<circle cx="40" cy="35" r="18" fill="#FFC46B"/><path d="M33 35l5 5 9-10" fill="none" stroke="#243B63" stroke-width="3"/>' +
+      '<rect x="72" y="24" width="180" height="8" rx="4" fill="#3E5A88"/><rect x="72" y="40" width="130" height="8" rx="4" fill="#3E5A88"/>' +
+      '<text x="14" y="94" font-family="Golos Text, sans-serif" font-size="13" fill="#9FC3FF">' + esc(img.host || "") + '</text></svg>' +
+      '<div class="cap"><b>' + esc(img.title || "Ссылка") + '</b>' + esc(img.host || "") + '</div></div>';
+  }
+  if (k === "apk") {
+    return '<div class="att"><svg viewBox="0 0 300 80"><rect width="300" height="80" fill="#162436"/><rect x="14" y="14" width="52" height="52" rx="12" fill="#2F5BD8"/><path d="M40 26l14 6v9c0 9-6 14-14 16-8-2-14-7-14-16v-9z" fill="#fff"/>' +
+      '<text x="80" y="36" font-family="Golos Text, sans-serif" font-size="14" font-weight="700" fill="#EAF0FA">ZashitaSvyaz.apk</text><text x="80" y="56" font-family="Golos Text, sans-serif" font-size="12" fill="#8E9BB8">18,4 МБ · нажмите, чтобы установить</text></svg></div>';
+  }
+  return "";
+}
+function attLabel(img) {
+  if (!img) return "вложение";
+  var k = (Array.isArray(img) ? img[0] : img);
+  k = typeof k === "string" ? k : k.k;
+  var o = Array.isArray(img) ? img[0] : img;
+  return { idcard: "фото «удостоверения»", order: "«постановление» с печатью", geo: "геопозиция", window: "фото из окна", passport: "фото паспорта", apk: "файл «приложения для защищённой связи»", link: "ссылка " + (o.host || "") }[k] || "вложение";
+}
+function windowsDots() {
+  var s = "";
+  var cols = [[28, 70, 2], [103, 40, 3], [188, 90, 2], [248, 60, 3]];
+  cols.forEach(function (c, j) {
+    for (var y = c[1] + 12; y < 190; y += 18)
+      for (var x = 0; x < c[2]; x++)
+        if ((x * 7 + y + j * 3) % 5 !== 0) s += '<rect x="' + (c[0] + x * 16) + '" y="' + y + '" width="8" height="8"/>';
+  });
+  return s;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+/* ============================================================
+   Состояние, сохранение
+   ============================================================ */
+// Аккаунты как в «Восьми ловушках»: у каждого ника свои звёзды и подсказки.
+// udar.profiles = { list: { ник: { stars, flagHint } }, active: ник }, звук общий — udar.settings
+var store = { list: {}, active: null };
+var settings = { sound: true };
+try {
+  var rawP = localStorage.getItem("udar.profiles");
+  if (rawP) store = Object.assign(store, JSON.parse(rawP));
+  var rawS = localStorage.getItem("udar.settings");
+  if (rawS) settings = Object.assign(settings, JSON.parse(rawS));
+  // старое сохранение без аккаунтов переезжает в аккаунт «Игрок»
+  var old = localStorage.getItem("udar.progress");
+  if (old && !Object.keys(store.list).length) {
+    old = JSON.parse(old);
+    store.list["Игрок"] = { stars: old.stars || {}, flagHint: !!old.flagHint };
+    store.active = "Игрок";
+    if (typeof old.sound === "boolean") settings.sound = old.sound;
+  }
+} catch (e) {}
+if (store.active && !store.list[store.active]) store.active = null;
+var progress = store.active ? store.list[store.active] : { stars: {} };
+function save() {
+  try { localStorage.setItem("udar.profiles", JSON.stringify(store)); localStorage.setItem("udar.settings", JSON.stringify(settings)); } catch (e) {}
+}
+function useProfile(name) {
+  store.active = name;
+  progress = store.list[name];
+  save();
+  syncAccount();
+  if (S && S.owner !== name) showAccountPhone();
+}
+function profileStats(p) {
+  var st = 0, done = 0;
+  Object.keys(p.stars || {}).forEach(function (k) { st += Math.floor(p.stars[k]); done++; });
+  return { stars: st, done: done };
+}
+var AVA_COLORS = ["#E9559B", "#3796D6", "#2BB673", "#D9822B", "#8A5CF6", "#1E9E8E", "#C9962F", "#E5483C"];
+function avaColor(name) { var h = 0; for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0; return AVA_COLORS[h % AVA_COLORS.length]; }
+
+var S = null;           // состояние текущего уровня
+var msgSeq = 1;
+var $ = function (id) { return document.getElementById(id); };
+
+function newLevelState(i) {
+  return { lvl: i, def: LEVELS[i], chats: {}, order: [], active: null, flagged: {}, vars: {}, timers: [], pending: 0, call: null, callQueue: [], clock: 18 * 60 + 40 + i * 7, startedAt: Date.now(), idle: 0, over: false, owner: store.active };
+}
+// время уровня без пауз: пока игрок в меню или в другом аккаунте, часы уровня стоят
+function gameNow() { return Date.now() - (S.idle || 0); }
+function later(fn, ms) {
+  var e = { fn: fn, due: Date.now() + (ms || 0), id: 0 };
+  S.timers.push(e);
+  arm(e, ms || 0);
+  return e;
+}
+function arm(e, ms) {
+  var st = S;
+  e.id = setTimeout(function () { st.timers = st.timers.filter(function (t) { return t !== e; }); e.fn(); }, ms);
+}
+function clearTimers() { if (!S) return; S.timers.forEach(function (e) { clearTimeout(e.id); }); S.timers = []; S.chats && Object.keys(S.chats).forEach(function (k) { stopNag(S.chats[k]); }); stopRing(); }
+
+/* ---------- незаконченные уровни аккаунтов ----------
+   Вышел в меню или сменил аккаунт посреди уровня — разговоры замирают и ждут.
+   У каждого ника свой незаконченный уровень; хранится до перезагрузки страницы. */
+var live = {};
+function pauseLevel() {
+  if (!S || !S.begun || S.paused) return;
+  var now = Date.now();
+  S.timers.forEach(function (e) { clearTimeout(e.id); e.left = Math.max(0, e.due - now); });
+  Object.keys(S.chats).forEach(function (k) { stopNag(S.chats[k]); });
+  stopRing();
+  S.paused = now;
+  $("call").classList.remove("show", "ringing");
+  closeChatSilently();
+  $("endBar").hidden = true;
+  $("screen").classList.remove("ended");
+}
+function parkLevel() {
+  if (!S || !S.begun || S.debriefed) return;
+  pauseLevel();
+  live[S.owner] = S;
+}
+function resumeLevel() {
+  if (!S || !S.paused) return;
+  var now = Date.now();
+  S.idle += now - S.paused;
+  S.paused = 0;
+  S.timers.forEach(function (e) { e.due = now + e.left; arm(e, e.left); });
+  Object.keys(S.chats).forEach(function (k) { var c = S.chats[k]; if (c.choices && !c.done && c.nagNode) startNag(c, c.nagNode); });
+  $("msgs").__key = null;
+  $("callSubs").__key = null;
+  if (S.active) $("screen").classList.add("in-chat");
+  if (S.call) {
+    $("call").classList.add("show");
+    if (!S.call.accepted) { $("call").classList.add("ringing"); startRing(); }
+  }
+  if (S.endShown) { $("endBar").hidden = false; $("screen").classList.add("ended"); }
+  render();
+}
+// пустой телефон за меню — у аккаунта ещё нет начатого уровня
+function blankState() { var b = newLevelState(0); b.owner = null; return b; }
+function showAccountPhone() {
+  S = live[store.active] || blankState();
+  closeChatSilently();
+  $("call").classList.remove("show", "ringing");
+  $("msgs").__key = null;
+  render();
+}
+function speed() { return S.def.speed || 1; }
+function nowStr() {
+  var m = S.clock + Math.floor((gameNow() - S.startedAt) / 20000);
+  return String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+}
+
+/* ============================================================
+   Движок переписки
+   ============================================================ */
+function ensureChat(id) {
+  if (S.chats[id]) return S.chats[id];
+  var def = S.def.chats[id];
+  var c = { id: id, def: def, msgs: [], node: null, choices: null, typing: false, queue: 0, unread: 0, done: false, outcome: null, picks: [], nags: 0, nagTimer: null, last: 0 };
+  S.chats[id] = c;
+  S.order.unshift(id);
+  S.vars["started:" + id] = true;
+  return c;
+}
+function spawn(id, node, delay) {
+  // чат запускается один раз. Повторный вызов может только приблизить запуск
+  // (например, «сейчас вам позвонят» раньше запасного звонка по таймеру)
+  var due = gameNow() + (delay || 0);
+  S.sched = S.sched || {};
+  if (S.chats[id] || (S.sched[id] && S.sched[id] <= due)) return;
+  S.sched[id] = due;
+  S.pending++;
+  later(function () {
+    S.pending--;
+    if (S.over) return;
+    // запуск уже случился раньше (или перенесён) — этот таймер пустой, но конец уровня мог ждать именно его
+    if (S.chats[id] || S.sched[id] !== due || S.callQueue.some(function (q) { return q[0] === id; })) { checkLevelEnd(); return; }
+    var def = S.def.chats[id];
+    // рассказал маме до звонка — мошенники больше не звонят (а уже идущий звонок мама не обрывает)
+    if (def.skipIf && S.vars[def.skipIf]) { checkLevelEnd(); return; }
+    if (def.kind === "call") { queueCall(id, node); checkLevelEnd(); return; }
+    goNode(ensureChat(id), node);
+  }, delay || 0);
+}
+function cond(item) {
+  if (item.if && !S.vars[item.if]) return false;
+  if (item.ifnot && S.vars[item.ifnot]) return false;
+  return true;
+}
+function goNode(c, nodeId) {
+  if (c.done || S.over) return;
+  var n = c.def.nodes[nodeId];
+  if (!n) return;
+  c.node = nodeId;
+  c.choices = null;
+  c.nags = 0;
+  stopNag(c);
+  if (n.set) S.vars[n.set] = true;
+  var items = (n.say || []).filter(function (s) { return typeof s === "string" || cond(s); });
+  var t = 350;
+  items.forEach(function (it, k) {
+    var text = typeof it === "string" ? it : (it.t || "");
+    var isSys = typeof it === "object" && it.sys;
+    // «печатает…» длится по длине текста: короткое — около секунды, длинное — несколько секунд
+    var hasImg = typeof it === "object" && it.img;
+    var wait = isSys ? 600 : clampMs(500 + text.length * 42 + (hasImg ? 1300 : 0), 800, 6500) * speed();
+    if (c.def.kind === "call") wait = clampMs(900 + text.length * 50, 1300, 7500) * speed();
+    var start = t;
+    later(function () { if (c.done && !isSys) return; c.typing = !isSys && c.def.kind !== "call"; c.queue++; render(); }, start);
+    t += wait;
+    later(function () {
+      c.typing = false; c.queue--;
+      if (c.done && !(typeof it === "object" && it.sys && n.end)) { render(); return; }
+      if (typeof it === "string") pushMsg(c, { from: "them", text: it });
+      else if (it.sys) pushMsg(c, { from: "sys", text: it.sys, tone: n.end === "trap" ? "bad" : (n.end === "safe" ? "ok" : "") });
+      else pushMsg(c, { from: "them", text: it.t || "", img: it.img, flag: it.f });
+    }, t);
+    t += 380;
+  });
+  later(function () {
+    if (c.done) return;
+    if (n.spawn) n.spawn.forEach(function (sp) { spawn(sp.chat, sp.node, sp.delay); });
+    if (n.resolve) n.resolve.forEach(resolveChat);
+    if (n.end) { finishChat(c, n.end); return; }
+    if (n.choices) {
+      c.choices = n.choices;
+      render();
+      startNag(c, n);
+    } else if (n.next) {
+      later(function () { goNode(c, n.next); }, 700 * speed());
+    } else render();
+    checkLevelEnd();
+  }, t);
+}
+function clampMs(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function pushMsg(c, m) {
+  m.id = msgSeq++;
+  m.time = nowStr();
+  c.msgs.push(m);
+  c.last = Date.now();
+  // поднять чат вверх списка
+  S.order = [c.id].concat(S.order.filter(function (x) { return x !== c.id; }));
+  var viewing = S.active === c.id && $("screen").classList.contains("in-chat");
+  if (c.def.kind === "call" && S.call && S.call.id === c.id) {
+    renderCall();
+  } else if (!viewing && m.from === "them") {
+    c.unread++;
+    showNotice(c, m.text || "Вложение");
+    ping();
+  } else if (m.from === "them") {
+    ping(true);
+    if (viewing) markRead(c);
+  }
+  render();
+}
+function choose(c, idx) {
+  var list = visibleChoices(c);
+  var ch = list[idx];
+  if (!ch || !c.choices) return;
+  c.choices = null;
+  stopNag(c);
+  c.picks.push({ t: ch.t, good: ch.good, why: ch.why });
+  if (ch.set) S.vars[ch.set] = true;
+  if (ch.act === "block") {
+    // блокировка — без сообщения от игрока
+  } else if (ch.act === "hangup") {
+    // трубка — без реплики
+  } else {
+    pushMsg(c, { from: "me", text: ch.say || ch.t, img: ch.img ? ch.img.map(function (k) { return { k: k }; }) : null });
+  }
+  // ошибка видна сразу, а не только в разборе
+  // свой ответ, как в мессенджере, всегда прокручивает ленту вниз; после ошибки лента держится
+  // внизу, пока игрок сам не прокрутит вверх, — красная рамка и ответ мошенника всегда на виду
+  c.stickUntil = Date.now() + 2500;
+  if (ch.good === false && ch.why) { c.stick = true; pushMsg(c, { from: "warn", text: ch.why }); buzz(); }
+  render();
+  later(function () { goNode(c, ch.next); }, 450);
+}
+function visibleChoices(c) { return (c.choices || []).filter(cond); }
+function finishChat(c, outcome, sysText) {
+  if (c.done) return;
+  c.done = true;
+  // следующий собеседник пишет только после того, как этот разговор закончился — любым исходом
+  (c.def.then || []).forEach(function (sp) { spawn(sp.chat, sp.node, sp.delay); });
+  c.outcome = c.def.real ? null : outcome;
+  c.choices = null;
+  stopNag(c);
+  if (sysText) pushMsg(c, { from: "sys", text: sysText, tone: outcome === "trap" ? "bad" : "ok" });
+  // после ошибки звонок не обрывается сразу — нужно успеть прочитать объяснение в красной рамке
+  var readWarn = c.msgs.length && c.msgs.some(function (m) { return m.from === "warn"; });
+  if (c.def.kind === "call" && S.call && S.call.id === c.id) later(function () { if (S.call && S.call.id === c.id) endCall(); }, readWarn ? 4500 : 1400);
+  render();
+  checkLevelEnd();
+}
+function resolveChat(r) {
+  if (r.spawn) { spawn(r.spawn.chat, r.spawn.node, r.spawn.delay); return; }
+  var c = S.chats[r.chat];
+  if (!c || c.done) return;
+  // ifNode: закрыть чат, только если он ждёт именно этого (например, ждёт звонка);
+  // иначе мошенник просто пишет ещё одно сообщение, а переписка продолжается
+  if (r.ifNode && c.node !== r.ifNode) { if (r.say) pushMsg(c, { from: "them", text: r.say.t, flag: r.say.f }); return; }
+  finishChat(c, r.outcome, r.sys);
+}
+function startNag(c, n) {
+  var list = n.nag || [];
+  if (!list.length || c.def.real) return;
+  var every = S.def.nagEvery || 24000;
+  c.nagNode = n;
+  c.nagTimer = setInterval(function () {
+    if (!c.choices || c.done || S.over || c.nags >= list.length) { stopNag(c); return; }
+    var it = list[c.nags++];
+    pushMsg(c, { from: "them", text: it.t, flag: it.f });
+  }, every);
+}
+function stopNag(c) { if (c.nagTimer) { clearInterval(c.nagTimer); c.nagTimer = null; } }
+
+/* ---------- звонки ---------- */
+function queueCall(id, node) {
+  if (S.call) { S.callQueue.push([id, node]); return; }
+  ensureChat(id);
+  S.call = { id: id, node: node, accepted: false, t0: 0 };
+  $("call").classList.add("show", "ringing");
+  renderCall();
+  startRing();
+}
+function acceptCall() {
+  var c = S.chats[S.call.id];
+  S.call.accepted = true;
+  S.call.t0 = Date.now();
+  $("call").classList.remove("ringing");
+  stopRing();
+  c.picks.push({ t: "Ответить на звонок" });
+  renderCall();
+  goNode(c, S.call.node);
+}
+function declineCall() {
+  var c = S.chats[S.call.id];
+  stopRing();
+  c.picks.push({ t: "Сбросить звонок", good: true });
+  pushMsg(c, { from: "sys", text: "Пропущенный вызов", tone: "ok" });
+  finishChat(c, "safe");
+  (c.def.onDecline || []).forEach(resolveChat);
+  if (S.call && S.call.id === c.id) endCall();
+}
+function endCall() {
+  if (!S || !S.call) return;
+  stopRing();
+  $("call").classList.remove("show", "ringing");
+  S.call = null;
+  render();
+  if (S.callQueue.length) {
+    var q = S.callQueue.shift();
+    later(function () { var d = S.def.chats[q[0]]; if (d.skipIf && S.vars[d.skipIf]) { checkLevelEnd(); return; } queueCall(q[0], q[1]); }, 1200);
+  }
+  checkLevelEnd();
+}
+
+/* ---------- конец уровня ---------- */
+// Проверка конца уровня идёт чуть позже: сначала должны выполниться все действия узла
+// (например, мама закрыла чат «майора» и тут же запланировала звонок «капитана»)
+function checkLevelEnd() {
+  if (S.over || S.endCheck) return;
+  S.endCheck = true;
+  later(function () { S.endCheck = false; checkLevelEndNow(); }, 60);
+}
+function checkLevelEndNow() {
+  if (S.over) return;
+  var scam = Object.keys(S.def.chats).filter(function (k) { return !S.def.chats[k].real; });
+  // все мошеннические чаты, которые могли начаться, закончились; новых не ждём
+  var allStartedDone = scam.every(function (k) { var c = S.chats[k]; return !c || c.done; });
+  var anyLeft = scam.some(function (k) {
+    var def = S.def.chats[k];
+    var c = S.chats[k];
+    return !c && def.start != null && !S.vars["skip:" + k];
+  });
+  if (S.pending > 0 || S.call || !allStartedDone) return;
+  if (anyLeft) {
+    // чат, который стартует по времени, ещё не пришёл — ускорим его, раз остальные закончены
+    return;
+  }
+  S.over = true;
+  // разбор открывается кнопкой: можно спокойно дочитать переписку
+  later(function () { S.endShown = true; $("endBar").hidden = false; $("screen").classList.add("ended"); render(); }, 900);
+}
+
+/* ============================================================
+   Отрисовка
+   ============================================================ */
+function avaHTML(def, cls, c) {
+  var done = "";
+  if (c && c.done && c.outcome) done = '<span class="done ' + (c.outcome === "safe" ? "ok" : "bad") + '">' + (c.outcome === "safe" ? "✓" : "✕") + "</span>";
+  return '<div class="ava ' + (cls || "") + '" style="background:' + def.color + '">' + esc(def.ini || "?") + done + "</div>";
+}
+// Меняем разметку, только если она правда изменилась: иначе новое сообщение в другом чате
+// пересоздаёт кнопки прямо под пальцем, и нажатие теряется
+function setHTML(el, html) { if (el.__html !== html) { el.innerHTML = html; el.__html = html; return true; } return false; }
+function rowHTML(id) {
+  var c = S.chats[id], def = c.def, last = c.msgs[c.msgs.length - 1];
+  var preview = c.typing ? "печатает…" : last ? (last.from === "warn" ? "⚠ Серьёзная ошибка" : (last.from === "me" ? "Вы: " : "") + (last.text || "📎 " + attLabel(last.img))) : (def.kind === "call" ? "Входящий вызов" : "");
+  var badge = c.unread ? '<span class="badge">' + c.unread + "</span>" : (c.choices && visibleChoices(c).length && !c.done ? '<span class="badge wait">!</span>' : "");
+  return avaHTML(def, "", c) +
+    '<div style="min-width:0"><div class="top"><b>' + esc(def.kind === "call" ? (def.callName || def.name) : def.name) + "</b>" + (def.tick ? '<svg class="tick"><use href="#i-tick"/></svg>' : "") + "</div>" +
+    '<div class="last' + (c.typing ? " typing" : "") + '">' + esc(preview) + "</div></div>" +
+    '<div class="meta"><span>' + (last ? last.time : "") + "</span>" + badge + "</div>";
+}
+// Список чатов: у каждого чата своя строка, она создаётся один раз. Новое сообщение или
+// «печатает…» меняют только её содержимое и место в списке — строки не пересоздаются и не мигают
+function renderList() {
+  var list = $("chatList");
+  if (!S.order.length) { list.__rows = null; setHTML(list, '<div class="empty">Пока тихо. Сейчас кто-нибудь напишет…</div>'); return; }
+  if (!list.__rows || list.__state !== S) { list.innerHTML = ""; list.__html = null; list.__rows = {}; list.__state = S; }
+  var rows = list.__rows;
+  Object.keys(rows).forEach(function (id) { if (S.order.indexOf(id) < 0) { rows[id].remove(); delete rows[id]; } });
+  S.order.forEach(function (id, i) {
+    var el = rows[id];
+    if (!el) {
+      el = document.createElement("button");
+      el.type = "button";
+      el.className = "chatrow fresh";
+      el.dataset.chat = id;
+      el.addEventListener("animationend", function () { el.classList.remove("fresh"); });
+      rows[id] = el;
+    }
+    setHTML(el, rowHTML(id));
+    if (list.children[i] !== el) list.insertBefore(el, list.children[i] || null);
+  });
+}
+function render() {
+  if (!S) return;
+  // список
+  renderList();
+  var unread = S.order.reduce(function (a, id) { return a + S.chats[id].unread; }, 0);
+  $("unreadTotal").textContent = unread ? unread + " непрочит." : "";
+  var others = S.order.reduce(function (a, id) { return a + (id === S.active ? 0 : S.chats[id].unread); }, 0);
+  $("backCnt").textContent = others ? String(others) : "";
+
+  // открытый чат
+  if (S.active) {
+    var c = S.chats[S.active], def = c.def;
+    setHTML($("headAva"), avaHTML(def, "ava--sm"));
+    setHTML($("headName"), esc(def.kind === "call" ? (def.callName || def.name) : def.name) + (def.tick ? '<svg class="tick"><use href="#i-tick"/></svg>' : ""));
+    var sub = $("headSub");
+    sub.textContent = c.typing ? "печатает…" : (c.done && !def.real && c.outcome ? (c.def.kind === "call" ? "звонок завершён" : "контакт заблокирован") : def.sub);
+    sub.className = c.typing ? "typing" : "";
+    var box = $("msgs");
+    var nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
+    var feedKey = "chat:" + S.startedAt + ":" + S.active;   // у каждого уровня свои чаты с теми же именами
+    var fresh = box.__key !== feedKey;
+    syncFeed(box, feedKey, c.msgs, msgHTML, c.typing, '<div class="day">Сегодня</div>');
+    var ch = visibleChoices(c);
+    var bottom = $("bottom");
+    if (c.choices && ch.length && !c.done && def.kind !== "call") {
+      bottom.className = "answers";
+      var changed = setHTML(bottom, '<div class="lbl">Выбери ответ</div>' + ch.map(function (o, i) {
+        return '<button class="answer' + (o.act ? " act" : "") + '" type="button" data-ans="' + i + '">' + esc(o.act === "block" ? "⛔ " + o.t : o.t) + "</button>";
+      }).join(""));
+      // если варианты не помещаются — подсказываем, что их можно листать
+      var lbl = bottom.querySelector(".lbl");
+      if (changed && lbl && bottom.scrollHeight > bottom.clientHeight + 4) lbl.textContent = "Выбери ответ · листай ↓";
+    } else {
+      bottom.className = "composer";
+      // разговор закончился — сразу кнопка обратно к списку
+      setHTML(bottom, c.done && !def.real ? '<button class="answer home" type="button" data-home>← Вернуться к чатам</button>' : "<div>Сообщение</div>");
+    }
+    // докручиваем после того, как внизу появились варианты ответа: они уменьшают ленту
+    var stick = c.stick || Date.now() < (c.stickUntil || 0);
+    if (fresh) box.scrollTop = box.scrollHeight;
+    else if (nearBottom || stick) smoothBottom(box);
+    // после ответа внизу меняется панель (варианты → «Вернуться к чатам») и лента меняет высоту —
+    // докручиваем ещё раз, когда всё встало на место
+    if (stick && !fresh) {
+      clearTimeout(box.__stickTimer);
+      box.__stickTimer = setTimeout(function () { if (S && S.active === c.id && (c.stick || Date.now() < (c.stickUntil || 0))) box.scrollTop = box.scrollHeight; }, 450);
+    }
+  }
+  renderPanel();
+  if (S.call) renderCall();
+}
+// Лента сообщений: при открытии чата рисуется целиком без анимации, дальше только дописываются
+// новые пузыри — они плавно выплывают, а старые не перерисовываются и не мигают
+function syncFeed(box, key, list, toHTML, typing, prefix) {
+  if (box.__key !== key) {
+    box.innerHTML = (prefix || "") + list.map(function (m) { return toHTML(m, true); }).join("");
+    box.__key = key;
+    box.__n = list.length;
+  } else {
+    var dots = box.querySelector(".typingdots");
+    for (var i = box.__n; i < list.length; i++) {
+      var tmp = document.createElement("div");
+      tmp.innerHTML = toHTML(list[i], false);
+      if (tmp.firstElementChild) box.insertBefore(tmp.firstElementChild, dots);
+    }
+    box.__n = list.length;
+  }
+  var td = box.querySelector(".typingdots");
+  if (typing && !td) box.insertAdjacentHTML("beforeend", '<div class="typingdots"><i></i><i></i><i></i></div>');
+  else if (!typing && td) td.remove();
+  var marks = box.querySelectorAll("[data-msg]");
+  for (var k = 0; k < marks.length; k++) marks[k].classList.toggle("flagged", !!S.flagged[marks[k].dataset.msg]);
+}
+function smoothBottom(box) {
+  try { box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); } catch (e) { box.scrollTop = box.scrollHeight; }
+}
+function msgHTML(m, old) {
+  if (m.from === "sys") return '<div class="msg sys ' + (m.tone || "") + (old ? " old" : "") + '">' + esc(m.text) + "</div>";
+  if (m.from === "warn") return warnHTML("msg", m, old);
+  var imgs = m.img ? (Array.isArray(m.img) ? m.img : [m.img]).map(attHTML).join("") : "";
+  var flagged = S.flagged[m.id] ? " flagged" : "";
+  var text = m.text ? esc(m.text) : "";
+  return '<div class="msg ' + m.from + flagged + (old ? " old" : "") + '" data-msg="' + m.id + '"><div class="bubble">' + imgs + text + "<time>" + m.time + "</time></div>" +
+    (m.from === "them" ? '<span class="flagmark"><svg><use href="#i-flag"/></svg></span>' : "") + "</div>";
+}
+function warnHTML(cls, m, old) {
+  return '<div class="' + cls + " warn" + (old ? " old" : "") + '"><b>⚠ Серьёзная ошибка</b>' + esc(m.text) + "</div>";
+}
+function renderCall() {
+  if (!S.call) return;
+  var c = S.chats[S.call.id], def = c.def;
+  setHTML($("callAva"), avaHTML(def, "ava--lg"));
+  $("callName").textContent = S.call.accepted ? (def.callName || def.name) : def.name;
+  $("callNum").textContent = S.call.accepted ? def.num : "входящий вызов · " + def.sub;
+  $("callRing").style.display = S.call.accepted ? "none" : "flex";
+  var subs = $("callSubs");
+  var before = subs.__n || 0;
+  syncFeed(subs, (S.call.accepted ? "call:" : "ring:") + S.startedAt + ":" + c.id, S.call.accepted ? c.msgs.filter(function (m) { return m.from !== "me"; }) : [], function (m, old) {
+    if (m.from === "sys") return '<div class="sub' + (old ? " old" : "") + '" style="text-align:center;background:none;color:#8E9BB8">' + esc(m.text) + "</div>";
+    if (m.from === "warn") return warnHTML("sub", m, old);
+    return '<div class="sub' + (S.flagged[m.id] ? " flagged" : "") + (old ? " old" : "") + '" data-msg="' + m.id + '">' + esc(m.text) + '<span class="flagmark"><svg><use href="#i-flag"/></svg></span></div>';
+  }, false);
+  if (subs.__n !== before) smoothBottom(subs);
+  var ch = visibleChoices(c);
+  setHTML($("callAns"), S.call.accepted && c.choices && !c.done ? ch.map(function (o, i) {
+    return '<button class="answer' + (o.act ? " act" : "") + '" type="button" data-cans="' + i + '">' + esc(o.act === "hangup" ? "📵 " + o.t : o.t) + "</button>";
+  }).join("") : "");
+}
+function renderPanel() {
+  var lv = S.def;
+  $("pLevelNo").textContent = "Уровень " + (S.lvl + 1) + " из " + LEVELS.length;
+  $("pLevelName").textContent = lv.name;
+  $("pLevelGoal").textContent = lv.goal;
+  $("mLevel").textContent = (S.lvl + 1) + ". " + lv.name;
+  $("mGoal").textContent = lv.goal;
+  var nflags = Object.keys(S.flagged).length;
+  $("pFlags").textContent = nflags;
+  $("mFlags").textContent = nflags;
+  var safe = 0;
+  $("pProgress").innerHTML = S.order.filter(function (id) { return !S.chats[id].def.real; }).map(function (id) {
+    var c = S.chats[id];
+    if (c.outcome === "safe") safe++;
+    var cls = c.done ? (c.outcome === "safe" ? "ok" : "bad") : "live";
+    var label = c.done ? (c.outcome === "safe" ? "ловушка обойдена" : "ловушка сработала") : "идёт разговор";
+    return '<div class="' + cls + '"><i></i><span>' + esc(c.def.callName || c.def.name) + " — " + label + "</span></div>";
+  }).join("") || '<div><i></i><span>Ждём первых сообщений…</span></div>';
+  $("pSafe").textContent = safe;
+}
+// «read:чат» — игрок открыл переписку и видел в ней хотя бы одно сообщение собеседника.
+// По нему, а не по самому началу чата, у мамы появляется «Мам, мне пишет майор…»
+function markRead(c) {
+  if (S.vars["read:" + c.id]) return;
+  if (c.msgs.some(function (m) { return m.from === "them"; })) S.vars["read:" + c.id] = true;
+}
+function openChat(id) {
+  var c = S.chats[id];
+  if (!c) return;
+  if (c.def.kind === "call" && S.call && S.call.id === id) return;
+  S.active = id;
+  c.unread = 0;
+  markRead(c);
+  $("screen").classList.add("in-chat");
+  $("msgs").__key = null;   // открытый заново чат рисуется целиком, без анимации старых сообщений
+  render();
+}
+function closeChat() { $("screen").classList.remove("in-chat"); S.active = null; render(); }
+
+var noticeTimer = null;
+function showNotice(c, text) {
+  // в списке чатов баннер не нужен: строка сама поднимается наверх со счётчиком
+  if (S.call || !S.active || !$("screen").classList.contains("in-chat")) return;
+  $("noticeAva").innerHTML = avaHTML(c.def, "ava--sm");
+  $("noticeName").textContent = c.def.callName || c.def.name;
+  $("noticeText").textContent = text;
+  var n = $("notice");
+  n.dataset.chat = c.id;
+  n.classList.add("show");
+  n.__at = Date.now();
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(function () { n.classList.remove("show"); }, 3200);
+}
+var toastTimer = null;
+function toast(t) { var el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2600); }
+
+function toggleFlag(id) {
+  if (S.over) return;
+  if (S.flagged[id]) delete S.flagged[id];
+  else {
+    S.flagged[id] = true;
+    if (!progress.flagHint) { progress.flagHint = true; save(); toast("Флажок поставлен. В конце уровня проверим, был ли подвох"); }
+  }
+  render();
+  if (S.call) renderCall();
+}
+
+/* ============================================================
+   Разбор уровня
+   ============================================================ */
+function allMsgs() { var a = []; Object.keys(S.chats).forEach(function (k) { S.chats[k].msgs.forEach(function (m) { a.push([S.chats[k], m]); }); }); return a; }
+function openDebrief() {
+  closeChatSilently();
+  S.debriefed = true;
+  delete live[S.owner];
+  $("screen").classList.remove("ended");
+  var lv = S.def;
+  var scam = S.order.filter(function (id) { return !S.chats[id].def.real; }).map(function (id) { return S.chats[id]; }).reverse();
+  var safe = scam.filter(function (c) { return c.outcome === "safe"; }).length;
+  var totalFlags = 0, found = 0, wrong = 0;
+  allMsgs().forEach(function (p) { var m = p[1]; if (m.from !== "them") return; if (m.flag) { totalFlags++; if (S.flagged[m.id]) found++; } else if (S.flagged[m.id]) wrong++; });
+  var flagRatio = totalFlags ? found / totalFlags : 1;
+  var stars = (safe === scam.length ? 2 : safe >= scam.length / 2 ? 1 : 0) + (flagRatio >= 0.6 && wrong <= 2 ? 1 : 0);
+  stars = Math.max(scam.length && safe ? 1 : 0, stars);
+  var best = progress.stars[S.lvl] || 0;
+  progress.stars[S.lvl] = Math.max(best, stars, 0.5);   // 0.5 — уровень пройден, звёзд нет
+  save();
+
+  $("dbNo").textContent = "Уровень " + (S.lvl + 1) + " · разбор";
+  $("dbTitle").textContent = safe === scam.length ? "Ни одна ловушка не сработала" : safe ? "Почти получилось" : "Все ловушки сработали";
+  $("dbStars").innerHTML = [0, 1, 2].map(function (i) { return '<span class="' + (i < stars ? "" : "off") + '">★</span>'; }).join("");
+  $("dbSummary").textContent = "Ловушек обойдено: " + safe + " из " + scam.length + " · красных флажков найдено " + found + " из " + totalFlags + (wrong ? " · лишних флажков: " + wrong : "") + "." +
+    (Math.floor(best) > stars ? " Лучший результат на этом уровне — " + Math.floor(best) + " ★, он сохранён." : stars > Math.floor(best) && best >= 1 ? " Это новый лучший результат!" : "");
+  $("dbChats").innerHTML = scam.map(function (c) {
+    var items = [];
+    c.picks.forEach(function (p) { if (p.good === false && p.why) items.push('<li class="wrong">Твой ответ: <q>' + esc(p.t) + "</q><small>" + esc(p.why) + "</small></li>"); });
+    c.msgs.forEach(function (m) {
+      if (m.from !== "them" || !m.flag) return;
+      var quote = m.text ? esc(m.text) + (m.img ? " + " + esc(attLabel(m.img)) : "") : esc(attLabel(m.img));
+      items.push('<li class="' + (S.flagged[m.id] ? "found" : "miss") + '"><q>' + quote + "</q><small>" + (S.flagged[m.id] ? "Найдено. " : "Пропущено. ") + esc(m.flag) + "</small></li>");
+    });
+    return '<div class="outcome"><div class="head">' + avaHTML(c.def, "ava--sm") + "<b>" + esc(c.def.callName || c.def.name) + '</b><span class="pill ' + (c.outcome === "safe" ? "ok" : "bad") + '">' + (c.outcome === "safe" ? "мимо ловушки" : "ловушка сработала") + "</span></div>" +
+      (items.length ? "<ul>" + items.join("") + "</ul>" : "") + "</div>";
+  }).join("") + (wrong ? '<div class="outcome"><div class="head"><b>Лишние флажки</b><span class="pill bad">' + wrong + '</span></div><ul>' + allMsgs().filter(function (p) { return p[1].from === "them" && !p[1].flag && S.flagged[p[1].id]; }).map(function (p) { return '<li class="wrong"><q>' + esc(p[1].text || attLabel(p[1].img)) + "</q><small>" + esc(p[0].def.name) + ": это обычное сообщение, подвоха в нём не было.</small></li>"; }).join("") + "</ul></div>" : "");
+  $("dbLesson").textContent = lv.lesson;
+  var last = S.lvl >= LEVELS.length - 1;
+  $("dbNext").textContent = last ? "Все уровни" : "Следующий уровень";
+  $("debriefLayer").hidden = false;
+  $("debriefLayer").querySelector(".modal").scrollTop = 0;
+}
+function closeChatSilently() { $("screen").classList.remove("in-chat"); $("notice").classList.remove("show"); }
+
+/* ============================================================
+   Уровни, меню
+   ============================================================ */
+function renderLevels() {
+  var cur = live[store.active];
+  var cont = cur ? '<button class="lvl cont" type="button" data-resume><span class="n">▶</span><div><b>Продолжить: уровень ' + (cur.lvl + 1) + "</b><span>«" + esc(cur.def.name) + "» — разговоры ждут с того же места</span></div><span></span></button>" : "";
+  $("levelList").innerHTML = cont + LEVELS.map(function (lv, i) {
+    var st = progress.stars[i] || 0;
+    var open = i === 0 || progress.stars[i - 1];
+    var got = Math.floor(st);
+    var stars = st ? '<span class="best">лучший</span>' + [0, 1, 2].map(function (k) { return k < got ? "<span>★</span>" : '<span class="off">☆</span>'; }).join("") : "";
+    return '<button class="lvl" type="button" data-lvl="' + i + '"' + (open ? "" : " disabled") + '><span class="n">' + (i + 1) + "</span><div><b>" + esc(lv.name) + "</b><span>" + (open ? esc(lv.goal) : "Откроется после уровня " + i) + '</span></div><span class="stars">' + stars + "</span></button>";
+  }).join("");
+}
+function syncAccount() {
+  var n = store.active || "—";
+  $("acctName").textContent = n;
+  $("pAcctName").textContent = n;
+}
+function renderSessions() {
+  var names = Object.keys(store.list);
+  $("sessions").innerHTML = names.length ? names.map(function (n) {
+    var st = profileStats(store.list[n]);
+    return '<div class="sess"><button class="sess__pick' + (n === store.active ? " on" : "") + '" type="button" data-pick="' + esc(n) + '">' +
+      '<span class="ava ava--sm" style="background:' + avaColor(n) + '">' + esc(n.charAt(0).toUpperCase()) + "</span>" +
+      "<span><b>" + esc(n) + "</b><small><span class=\"gold\">★</span> " + st.stars + " из " + (LEVELS.length * 3) + " · уровней: " + st.done + " из " + LEVELS.length + (live[n] ? " · ▶ идёт уровень " + (live[n].lvl + 1) : "") + "</small></span>" +
+      (n === store.active ? "<i>сейчас</i>" : "") + "</button>" +
+      '<button class="sess__del" type="button" data-del="' + esc(n) + '" aria-label="Удалить аккаунт ' + esc(n) + '">×</button></div>';
+  }).join("") : '<p class="hint">Аккаунтов пока нет — придумай ник и нажми «Создать».</p>';
+}
+function openProfiles() {
+  parkLevel();
+  $("endBar").hidden = true;
+  renderSessions();
+  $("nameNote").textContent = "";
+  $("profBackRow").hidden = !store.active;
+  $("menuLayer").hidden = true;
+  $("introLayer").hidden = true;
+  $("debriefLayer").hidden = true;
+  $("profileLayer").hidden = false;
+}
+function createProfile() {
+  var name = $("newName").value.replace(/\s+/g, " ").trim();
+  if (!name) { $("nameNote").textContent = "Напиши ник — хотя бы одну букву."; return; }
+  var taken = Object.keys(store.list).some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
+  if (taken) { $("nameNote").textContent = "Такой ник уже есть — выбери его в списке или придумай другой."; return; }
+  store.list[name] = { stars: {}, flagHint: false };
+  $("newName").value = "";
+  useProfile(name);
+  $("profileLayer").hidden = true;
+  openMenu();
+}
+function openMenu() {
+  parkLevel();
+  $("endBar").hidden = true;
+  if (!store.active) { openProfiles(); return; }
+  syncAccount();
+  renderLevels();
+  $("profileLayer").hidden = true;
+  $("menuLayer").hidden = false;
+  $("introLayer").hidden = true;
+  $("debriefLayer").hidden = true;
+}
+function showIntro(i) {
+  // поставленный на паузу уровень не трогаем: из вступления можно вернуться и продолжить его
+  if (S && !S.paused) clearTimers();
+  $("endBar").hidden = true;
+  $("screen").classList.remove("ended");
+  S = newLevelState(i);
+  closeChatSilently();
+  $("call").classList.remove("show", "ringing");
+  render();
+  $("menuLayer").hidden = true;
+  $("profileLayer").hidden = true;
+  $("debriefLayer").hidden = true;
+  $("introNo").textContent = "Уровень " + (i + 1) + " из " + LEVELS.length;
+  $("introName").textContent = LEVELS[i].name;
+  $("introText").textContent = LEVELS[i].intro;
+  $("introLayer").hidden = false;
+  $("introGo").focus({ preventScroll: true });
+}
+function startLevel() {
+  $("introLayer").hidden = true;
+  audio();
+  S.begun = true;
+  // новый заход вместо незаконченного уровня этого аккаунта
+  if (live[store.active] && live[store.active] !== S) { var old = S; S = live[store.active]; clearTimers(); S = old; }
+  delete live[store.active];
+  var chats = S.def.chats;
+  Object.keys(chats).forEach(function (id) {
+    if (chats[id].start != null) spawn(id, Object.keys(chats[id].nodes)[0], chats[id].start);
+  });
+  render();
+}
+
+/* ============================================================
+   Звук: WebAudio без файлов
+   ============================================================ */
+var ac = null, ringTimer = null;
+function audio() { if (ac || !settings.sound) return; try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; } }
+function tone(f, t0, dur, vol, type) {
+  if (!ac || !settings.sound) return;
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "sine";
+  o.frequency.value = f;
+  g.gain.setValueAtTime(0, ac.currentTime + t0);
+  g.gain.linearRampToValueAtTime(vol, ac.currentTime + t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(ac.currentTime + t0); o.stop(ac.currentTime + t0 + dur + 0.05);
+}
+function buzz() { try { tone(196, 0, 0.18, 0.07, "square"); tone(147, 0.16, 0.26, 0.07, "square"); } catch (e) {} if (navigator.vibrate) try { navigator.vibrate(120); } catch (e) {} }
+function ping(quiet) { try { tone(1320, 0, 0.12, quiet ? 0.04 : 0.08); tone(1760, 0.08, 0.16, quiet ? 0.03 : 0.07); } catch (e) {} }
+function startRing() {
+  stopRing();
+  var ring = function () { try { for (var i = 0; i < 4; i++) { tone(880, i * 0.18, 0.15, 0.08, "triangle"); tone(660, i * 0.18 + 0.09, 0.12, 0.06, "triangle"); } } catch (e) {} if (navigator.vibrate) try { navigator.vibrate([300, 200, 300]); } catch (e) {} };
+  ring();
+  ringTimer = setInterval(ring, 2200);
+}
+function stopRing() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } }
+
+/* ============================================================
+   События
+   ============================================================ */
+// Нажатие считаем по отпусканию пальца — по элементу, который под ним сейчас. Если между
+// касанием и отпусканием пришло сообщение и разметка обновилась, нажатие не теряется.
+// Прокрутка лентой нажатием не считается (браузер присылает pointercancel или палец уехал).
+function onTap(el, fn) {
+  var sx = 0, sy = 0, armed = false;
+  el.addEventListener("pointerdown", function (e) { if (e.button > 0) return; sx = e.clientX; sy = e.clientY; armed = true; });
+  el.addEventListener("pointercancel", function () { armed = false; });
+  el.addEventListener("pointerup", function (e) {
+    if (!armed) return;
+    armed = false;
+    if (Math.abs(e.clientX - sx) > 12 || Math.abs(e.clientY - sy) > 12) return;
+    var under = document.elementFromPoint(e.clientX, e.clientY) || e.target;
+    if (!el.contains(under)) return;
+    el.__tapAt = Date.now();
+    fn(under);
+  });
+  // клавиатура (Enter/пробел) даёт click без указателя
+  el.addEventListener("click", function (e) { if (Date.now() - (el.__tapAt || 0) < 600) return; fn(e.target); });
+}
+onTap($("chatList"), function (t) { var b = t.closest("[data-chat]"); if (b) openChat(b.dataset.chat); });
+$("backBtn").addEventListener("click", closeChat);
+// игрок сам листает ленту — больше не тянем её вниз
+["wheel", "touchmove"].forEach(function (ev) {
+  $("msgs").addEventListener(ev, function () { var c = S && S.active && S.chats[S.active]; if (c) { c.stick = false; c.stickUntil = 0; } }, { passive: true });
+});
+onTap($("msgs"), function (t) { var m = t.closest(".msg.them"); if (m) toggleFlag(Number(m.dataset.msg)); });
+onTap($("callSubs"), function (t) { var m = t.closest("[data-msg]"); if (m) toggleFlag(Number(m.dataset.msg)); });
+onTap($("bottom"), function (t) {
+  if (t.closest("[data-home]")) { closeChat(); return; }
+  var b = t.closest("[data-ans]"); if (b && S.active) choose(S.chats[S.active], Number(b.dataset.ans));
+});
+onTap($("callAns"), function (t) { var b = t.closest("[data-cans]"); if (b && S.call) choose(S.chats[S.call.id], Number(b.dataset.cans)); });
+$("endGo").addEventListener("click", function () { $("endBar").hidden = true; openDebrief(); });
+$("callAccept").addEventListener("click", function () { if (S.call) acceptCall(); });
+$("callDecline").addEventListener("click", function () { if (S.call) declineCall(); });
+$("notice").addEventListener("click", function () {
+  // нажатие в момент появления — скорее всего, целились в шапку чата, а не в баннер
+  if (Date.now() - (this.__at || 0) < 450) return;
+  $("notice").classList.remove("show"); openChat(this.dataset.chat);
+});
+$("levelList").addEventListener("click", function (e) {
+  if (e.target.closest("[data-resume]") && live[store.active]) { audio(); S = live[store.active]; $("menuLayer").hidden = true; resumeLevel(); return; }
+  var b = e.target.closest("[data-lvl]"); if (b && !b.disabled) { audio(); showIntro(Number(b.dataset.lvl)); } });
+$("introGo").addEventListener("click", startLevel);
+$("acctBtn").addEventListener("click", openProfiles);
+$("pAcct").addEventListener("click", openProfiles);
+$("profBack").addEventListener("click", openMenu);
+$("newSession").addEventListener("click", createProfile);
+$("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") createProfile(); });
+$("sessions").addEventListener("click", function (e) {
+  var pick = e.target.closest("[data-pick]"), del = e.target.closest("[data-del]");
+  if (pick) { useProfile(pick.dataset.pick); openMenu(); return; }
+  if (!del) return;
+  // удаление в два нажатия: сначала «Удалить?», потом само удаление
+  if (!del.classList.contains("ask")) {
+    $("sessions").querySelectorAll(".sess__del.ask").forEach(function (b) { b.classList.remove("ask"); b.textContent = "×"; });
+    del.classList.add("ask"); del.textContent = "Удалить?"; return;
+  }
+  var n = del.dataset.del;
+  if (live[n]) { if (S === live[n]) { clearTimers(); S = blankState(); render(); } delete live[n]; }
+  delete store.list[n];
+  if (store.active === n) { store.active = null; progress = { stars: {} }; }
+  save(); syncAccount(); renderSessions();
+  $("profBackRow").hidden = !store.active;
+});
+$("introBack").addEventListener("click", openMenu);
+$("pLevels").addEventListener("click", openMenu);
+$("mMenu").addEventListener("click", openMenu);
+$("dbRetry").addEventListener("click", function () { showIntro(S.lvl); });
+$("dbLevels").addEventListener("click", openMenu);
+$("dbNext").addEventListener("click", function () { if (S.lvl >= LEVELS.length - 1) openMenu(); else showIntro(S.lvl + 1); });
+function syncSound() { $("pSound").textContent = "Звук: " + (settings.sound ? "вкл" : "выкл"); }
+$("pSound").addEventListener("click", function () { settings.sound = !settings.sound; save(); syncSound(); if (settings.sound) audio(); else stopRing(); });
+syncSound();
+
+setInterval(function () { if (S) $("clock").textContent = nowStr(); }, 5000);
+
+// старт: экран выбора уровня поверх пустого телефона
+S = newLevelState(0);
+render();
+syncAccount();
+if (store.active) renderLevels(); else openProfiles();
+$("clock").textContent = nowStr();
+
+// для автопроверки
+window.__udar = { get S() { return S; }, LEVELS: LEVELS, choose: function (id, i) { choose(S.chats[id], i); }, accept: acceptCall, decline: declineCall, start: function (i) { showIntro(i); startLevel(); }, open: function (id) { openChat(id); }, visible: function (id) { return visibleChoices(S.chats[id]); } };
+})();
+</script>
+</body>
+</html>

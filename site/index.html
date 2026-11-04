@@ -1,0 +1,1544 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Восемь ловушек — игра о безопасности в сети и в жизни</title>
+<meta name="description" content="Браузерная игра о мошенниках и опасностях в интернете. 78 ситуаций, задания подбираются под возраст: от 6 до 99 лет. Играть можно сразу, без установки.">
+<meta property="og:title" content="Восемь ловушек">
+<meta property="og:description" content="Звонок из «банка», ссылка на подарок, слишком удачная работа. Пройди район и выбери, как поступить.">
+<meta property="og:image" content="https://vosem-lovushek.duckdns.org/assets/cover.png">
+<meta property="og:url" content="https://vosem-lovushek.duckdns.org/">
+<meta property="og:site_name" content="Восемь ловушек">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://vosem-lovushek.duckdns.org/">
+<!-- Название сайта для выдачи Google: без него над ссылкой пишется имя основного домена («Duck DNS») -->
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "WebSite",
+ "name": "Восемь ловушек", "alternateName": ["8 ловушек", "Vosem Lovushek"],
+ "url": "https://vosem-lovushek.duckdns.org/"}
+</script>
+<!-- для поисковиков: что это за сайт; «Vosem Lovushek» — чтобы находилось и латиницей -->
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "VideoGame",
+ "name": "Восемь ловушек", "alternateName": ["Vosem Lovushek", "8 ловушек", "vosem-lovushek"],
+ "url": "https://vosem-lovushek.duckdns.org/", "image": "https://vosem-lovushek.duckdns.org/assets/cover.png",
+ "description": "Браузерная игра о мошенниках и опасностях в интернете: 78 ситуаций, задания подбираются под возраст.",
+ "inLanguage": "ru", "genre": "Обучающая игра", "gamePlatform": "Веб-браузер",
+ "applicationCategory": "Game", "operatingSystem": "Любая с браузером",
+ "offers": {"@type": "Offer", "price": "0", "priceCurrency": "RUB"}}
+</script>
+<meta name="theme-color" content="#070B14">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon-120.png" type="image/png" sizes="120x120">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="8 ловушек">
+<link rel="stylesheet" href="/assets/fonts.css">
+<style>
+  :root {
+    --ink: #070B14;
+    --ink-2: #0B1120;
+    --slab: #111A2B;
+    --slab-2: #162135;
+    --fog: #253552;
+    --line: rgba(120, 160, 210, .14);
+    --paper: #EAF0FA;
+    --muted: #8E9BB8;
+    --lamp: #FFC46B;
+    --mint: #3EE6A8;
+    --teal: #22D3C5;
+    --sky: #49C3F5;
+    --alarm: #FF6F61;
+    --grad: linear-gradient(135deg, #3EE6A8 0%, #22D3C5 45%, #49C3F5 100%);
+    --display: "Unbounded", system-ui, sans-serif;
+    --body: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --radius: 20px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { color-scheme: dark; scroll-behavior: smooth; background: var(--ink); }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--body);
+    font-size: 20px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a { color: var(--mint); text-underline-offset: 3px; }
+  img { max-width: 100%; display: block; }
+  :focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; border-radius: 6px; }
+
+  /* ---------- живой фон: сияние и частицы ---------- */
+
+  .aurora {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .aurora i {
+    position: absolute;
+    border-radius: 50%;
+    will-change: transform;
+  }
+  .aurora i:nth-child(1) { width: 900px; height: 900px; left: -300px; top: -340px; background: radial-gradient(closest-side, rgba(14, 140, 100, .45), transparent); animation: drift1 26s ease-in-out infinite alternate; }
+  .aurora i:nth-child(2) { width: 820px; height: 820px; right: -320px; top: 12%;   background: radial-gradient(closest-side, rgba(13, 100, 150, .42), transparent); animation: drift2 32s ease-in-out infinite alternate; }
+  .aurora i:nth-child(3) { width: 760px; height: 760px; left: 18%;   bottom: -380px; background: radial-gradient(closest-side, rgba(90, 55, 150, .32), transparent); animation: drift3 38s ease-in-out infinite alternate; }
+
+  @keyframes drift1 { to { transform: translate(140px, 120px) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(-160px, 140px) scale(.9); } }
+  @keyframes drift3 { to { transform: translate(120px, -140px) scale(1.1); } }
+
+  #sky {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* лёгкая сетка, как улицы района сверху */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(120, 160, 210, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120, 160, 210, .045) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, #000 30%, transparent 75%);
+  }
+
+  .page { position: relative; z-index: 1; }
+
+  .wrap { width: min(1140px, 100%); margin: 0 auto; padding-inline: 20px; }
+
+  /* ---------- типографика ---------- */
+
+  h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -.02em; }
+  h1 { font-size: clamp(40px, 6.4vw, 72px); font-weight: 900; line-height: 1.02; }
+  h2 { font-size: clamp(26px, 3.6vw, 42px); font-weight: 800; line-height: 1.12; }
+  h3 { font-size: 24px; font-weight: 700; line-height: 1.25; }
+
+  /* главный заголовок целиком градиентом: сверху светлая бирюза, книзу насыщенная */
+  .grad-title {
+    background: linear-gradient(170deg, #C9FFE9 0%, #3EE6A8 38%, #22D3C5 66%, #49C3F5 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .grad-text {
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(62, 230, 168, .28);
+    background: rgba(62, 230, 168, .07);
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--mint);
+    margin-bottom: 18px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mint);
+    box-shadow: 0 0 12px var(--mint);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+
+  .lede { font-size: clamp(20px, 2.3vw, 25px); color: #B4C3DA; margin: 20px 0 0; max-width: 54ch; }
+  .sub { color: var(--muted); margin: 14px 0 0; max-width: 62ch; font-size: 20px; }
+
+  /* ---------- кнопки ---------- */
+
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 17px 32px;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 17px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: transform .2s ease, box-shadow .25s ease, border-color .2s ease, background .2s ease;
+  }
+  .btn--go {
+    background: var(--grad);
+    color: #04201A;
+    box-shadow: 0 10px 30px rgba(34, 211, 197, .28), inset 0 1px 0 rgba(255, 255, 255, .45);
+  }
+  .btn--go:hover { transform: translateY(-2px); box-shadow: 0 16px 44px rgba(34, 211, 197, .42), inset 0 1px 0 rgba(255, 255, 255, .45); }
+  .btn--go svg { transition: transform .2s ease; }
+  .btn--go:hover svg { transform: translateX(3px); }
+  .btn--ghost { border-color: var(--fog); color: var(--paper); background: rgba(255, 255, 255, .04); }
+  .btn--ghost:hover { border-color: rgba(62, 230, 168, .6); transform: translateY(-2px); }
+  .btn--big { padding: 24px 38px; font-size: 21px; gap: 14px; }
+  .btn--big svg { width: 22px; height: 22px; }
+  /* если две большие кнопки не влезли в ряд — обе на всю ширину, ровной стопкой */
+  .hero__actions .btn--big { flex: 1 1 auto; }
+
+  /* ---------- шапка ---------- */
+
+  header.top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(7, 11, 20, .9);
+    border-bottom: 1px solid var(--line);
+  }
+  .top__row { display: flex; align-items: center; gap: 12px; padding-block: 12px; }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: auto;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--paper);
+    text-decoration: none;
+  }
+  .brand img { width: 48px; height: 48px; filter: drop-shadow(0 0 14px rgba(62, 230, 168, .45)); transition: transform .3s ease; }
+  .brand:hover img { transform: rotate(-6deg) scale(1.06); }
+
+  /* ---------- первый экран ---------- */
+
+  .hero { position: relative; overflow-x: clip; padding-block: clamp(52px, 8vw, 104px) clamp(40px, 6vw, 72px); }
+
+  .hero__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    gap: clamp(28px, 4vw, 60px);
+    align-items: center;
+  }
+
+  .hero__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 36px; }
+
+  .trust { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 17px; color: var(--muted); }
+  .trust span { display: inline-flex; align-items: center; gap: 7px; }
+  .trust svg { flex: none; }
+
+  /* рамка со скриншотом */
+  .shot {
+    position: relative;
+    border-radius: var(--radius);
+    background: var(--slab);
+    overflow: hidden;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, .6);
+  }
+  /* светящаяся градиентная кромка */
+  .shot { border: 1px solid rgba(62, 230, 168, .32); }
+  .shot__bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--slab-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .shot__dot { width: 9px; height: 9px; border-radius: 50%; background: #2E3B57; }
+  .shot__dot:first-child { background: #FF6F61; }
+  .shot__dot:nth-child(2) { background: #FFC46B; }
+  .shot__dot:nth-child(3) { background: #3EE6A8; }
+  .shot__name { margin-left: 8px; font-size: 11px; letter-spacing: .06em; color: var(--muted); font-family: var(--display); text-transform: uppercase; }
+  .shot img { width: 100%; height: auto; }
+
+  /* трейлер на первом экране: обложка с кнопкой, по нажатию — видео со звуком и панелью управления */
+  .promo { position: relative; aspect-ratio: 16 / 9; background: #0B1424; }
+  .promo video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .promo__play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    border: 0;
+    background: radial-gradient(closest-side, rgba(7, 11, 20, .15), rgba(7, 11, 20, .45));
+    color: var(--paper);
+    cursor: pointer;
+    font: inherit;
+  }
+  .promo__btn {
+    display: grid;
+    place-items: center;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: var(--grad);
+    color: var(--ink);
+    box-shadow: 0 0 0 10px rgba(62, 230, 168, .18), 0 18px 50px rgba(0, 0, 0, .5);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .promo__btn svg { margin-left: 4px; }
+  .promo__label {
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(7, 11, 20, .72);
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .promo__play:hover .promo__btn, .promo__play:focus-visible .promo__btn { transform: scale(1.08); box-shadow: 0 0 0 14px rgba(62, 230, 168, .22), 0 18px 50px rgba(0, 0, 0, .5); }
+  .promo__play[hidden] { display: none; }
+  .promo__note { position: relative; margin-top: 18px; font-size: 16.5px; color: var(--muted); text-align: center; }
+  /* пока видео идёт, рамка не плавает — иначе картинка дрожит */
+  .hero__float.is-playing { animation: none; }
+
+  .hero__visual { position: relative; }
+  .hero__visual::before {
+    content: "";
+    position: absolute;
+    inset: -12% -10%;
+    background: radial-gradient(closest-side, rgba(34, 211, 197, .32), rgba(62, 230, 168, .1) 55%, transparent);
+  }
+  /* наклон неподвижный, плавает только обёртка вверх-вниз: так браузер не перерисовывает картинку каждый кадр */
+  .hero__shot { box-shadow: 0 40px 100px rgba(0, 0, 0, .6), 0 0 60px rgba(34, 211, 197, .18); }
+  .hero__float { animation: float 7s ease-in-out infinite; will-change: transform; }
+  @keyframes float { 50% { transform: translateY(-12px); } }
+
+  /* бейджи, плавающие у скриншота */
+  .badge {
+    position: absolute;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(17, 26, 43, .95);
+    border: 1px solid var(--line);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .45);
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge--a { left: -22px; bottom: -24px; animation: float2 6s ease-in-out infinite; will-change: transform; }
+  .badge--b { right: -16px; top: -52px;  animation: float2 7s ease-in-out infinite reverse; will-change: transform; }
+  @keyframes float2 { 50% { transform: translateY(-10px); } }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: clamp(40px, 6vw, 64px);
+  }
+  .fact {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012));
+  }
+  .fact b { display: block; font-family: var(--display); font-size: clamp(24px, 3vw, 32px); font-weight: 800; line-height: 1; }
+  .fact span { display: block; margin-top: 4px; font-size: 16px; color: var(--muted); line-height: 1.3; }
+
+  /* ---------- иконки ---------- */
+
+  .ico {
+    flex: none;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+    background: linear-gradient(145deg, rgba(62, 230, 168, .22), rgba(34, 211, 197, .08));
+    border: 1px solid rgba(62, 230, 168, .35);
+    box-shadow: 0 0 0 4px rgba(62, 230, 168, .05), 0 10px 26px rgba(34, 211, 197, .18), inset 0 1px 0 rgba(255, 255, 255, .12);
+    color: var(--mint);
+  }
+  .ico svg { width: 24px; height: 24px; filter: drop-shadow(0 0 6px rgba(62, 230, 168, .55)); }
+  .ico--sm { width: 40px; height: 40px; border-radius: 12px; }
+  .ico--sm svg { width: 20px; height: 20px; }
+  .ico--lg { width: 56px; height: 56px; border-radius: 17px; }
+  .ico--lg svg { width: 28px; height: 28px; }
+
+  /* ---------- секции ---------- */
+
+  /* clip: пока блок не проявился, он сдвинут вбок — без этого появлялась бы горизонтальная прокрутка */
+  section { position: relative; overflow-x: clip; padding-block: clamp(56px, 8vw, 104px); }
+  section + section::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: min(1100px, 92%);
+    height: 1px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, transparent, rgba(62, 230, 168, .35), rgba(73, 195, 245, .25), transparent);
+  }
+
+  .head { max-width: 760px; margin-bottom: 40px; }
+  .head--center { margin-inline: auto; text-align: center; }
+  .head--center .sub { margin-inline: auto; }
+
+  /* карточки со светом под курсором */
+  .glass {
+    position: relative;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(22, 32, 52, .82), rgba(13, 20, 35, .82));
+    overflow: hidden;
+    transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease;
+  }
+  .glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(380px circle at var(--mx, 50%) var(--my, -20%), rgba(62, 230, 168, .13), transparent 45%);
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+  .glass:hover { transform: translateY(-4px); border-color: rgba(62, 230, 168, .35); box-shadow: 0 22px 50px rgba(0, 0, 0, .35); }
+  .glass:hover::after { opacity: 1; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .card { padding: 28px 26px 30px; }
+  .card h3 { margin-top: 20px; }
+  .card p { margin: 10px 0 0; color: var(--muted); font-size: 18.5px; }
+
+  .gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .gallery figure { margin: 0; }
+  .gallery .shot { transition: transform .35s ease; }
+  .gallery figure:hover .shot { transform: translateY(-5px) scale(1.01); }
+  .gallery figcaption { display: flex; gap: 14px; align-items: flex-start; margin-top: 16px; font-size: 17.5px; color: var(--muted); }
+  .gallery figcaption b { color: var(--paper); font-weight: 600; display: block; font-size: 19px; }
+
+  .ages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .age { padding: 24px 22px 26px; }
+  .age__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .age b { display: block; margin-top: 18px; font-family: var(--display); font-size: 30px; font-weight: 800; }
+  .age i { display: inline-block; margin-top: 2px; font-style: normal; font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .age span { display: block; margin-top: 12px; font-size: 17.5px; color: #B9C3DA; line-height: 1.5; }
+  .age__bar { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .06); margin-top: 18px; overflow: hidden; }
+  .age__bar u { display: block; height: 100%; border-radius: inherit; background: var(--grad); width: 0; transition: width 1.2s cubic-bezier(.2, .8, .2, 1) .3s; }
+  .seen .age__bar u { width: var(--w); }
+
+  .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: start; }
+  .points { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .points li { display: flex; gap: 16px; align-items: flex-start; padding: 18px 20px; color: var(--muted); font-size: 18.5px; }
+  .points li b { color: var(--paper); font-weight: 600; display: block; margin-bottom: 2px; }
+
+  .note { padding: 30px 28px; }
+  .note h3 { margin: 18px 0 16px; }
+  .note ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .note li { position: relative; padding-left: 26px; color: #BFC9DE; font-size: 18.5px; }
+  .note li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--grad);
+    box-shadow: 0 0 10px rgba(62, 230, 168, .6);
+  }
+
+  /* раздел «Учителям» */
+  #teachers .card { display: flex; flex-direction: column; }
+  #teachers .card p { flex: 1; }
+  .dl { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  /* кнопки в карточках переносят текст, а не вылезают за край узкой карточки */
+  .dl .btn { padding: 13px 20px; font-size: 15px; white-space: normal; text-align: center; max-width: 100%; }
+  .tips { display: flex; gap: 18px; align-items: flex-start; margin-top: 18px; padding: 22px 24px; }
+  .tips b { display: block; font-family: var(--display); font-size: 19px; margin-bottom: 6px; }
+  .tips span { color: var(--muted); }
+  kbd { font-family: var(--display); font-size: .8em; padding: 2px 8px; border-radius: 7px; border: 1px solid var(--fog); border-bottom-width: 3px; background: var(--slab-2); color: var(--paper); }
+
+  .keys { display: flex; flex-wrap: wrap; gap: 10px; }
+  .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .03);
+    font-size: 17.5px;
+    color: var(--muted);
+    transition: border-color .2s ease, transform .2s ease;
+  }
+  .key:hover { border-color: rgba(62, 230, 168, .45); transform: translateY(-2px); }
+  .key b {
+    font-family: var(--display);
+    font-size: 14px;
+    color: var(--paper);
+    background: linear-gradient(180deg, #22304A, #172238);
+    border: 1px solid var(--fog);
+    border-bottom-width: 3px;
+    border-radius: 8px;
+    padding: 4px 10px;
+  }
+
+  .final {
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    padding: clamp(52px, 7vw, 84px) 24px;
+    border-radius: 28px;
+    border: 1px solid rgba(62, 230, 168, .25);
+    background:
+      radial-gradient(700px 320px at 50% -10%, rgba(62, 230, 168, .22), transparent 70%),
+      radial-gradient(500px 260px at 90% 120%, rgba(73, 195, 245, .18), transparent 70%),
+      linear-gradient(180deg, rgba(17, 26, 43, .9), rgba(11, 17, 32, .9));
+  }
+  .final .sub { margin-inline: auto; }
+  .final .ico { margin: 0 auto 22px; }
+
+  footer { position: relative; border-top: 1px solid var(--line); padding-block: 30px 44px; color: var(--muted); font-size: 17px; }
+  .foot__row { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
+
+  /* ---------- плавное появление при прокрутке ---------- */
+
+  .rise {
+    opacity: 0;
+    transform: translateY(46px) scale(.97);
+    filter: blur(8px);
+    transition:
+      opacity .9s cubic-bezier(.2, .7, .2, 1),
+      transform .9s cubic-bezier(.2, .7, .2, 1),
+      filter .9s cubic-bezier(.2, .7, .2, 1);
+    transition-delay: var(--d, 0ms);
+  }
+  .rise--left  { transform: translateX(-56px); }
+  .rise--right { transform: translateX(56px); }
+  .rise--zoom  { transform: scale(.9); }
+  .rise.seen { opacity: 1; transform: none; filter: none; }
+  /* у карточек своя анимация при наведении — после появления возвращаем её */
+  .glass.rise.seen { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease, opacity .9s ease, filter .9s ease; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .rise, .rise--left, .rise--right, .rise--zoom { opacity: 1; transform: none; filter: none; transition: none; }
+    .aurora i, .hero__float, .badge, .eyebrow::before { animation: none; }
+    .hero__shot { transform: none; }
+    .age__bar u { transition: none; width: var(--w); }
+  }
+
+  /* ---------- отзыв ---------- */
+
+  .fb-cta { display: flex; align-items: center; gap: 26px; padding: 30px 32px; }
+  .fb-cta.glass:hover { transform: none; }
+  .fb-cta__text { flex: 1; }
+  .fb-cta h2 { margin: 0; }
+  .fb-cta .sub { margin-top: 8px; }
+  .fb__avg { margin: 14px 0 0; display: inline-flex; align-items: center; gap: 10px; font-size: 18px; color: var(--paper); }
+  .fb__avg b { font-family: var(--display); font-size: 26px; color: var(--lamp); }
+  .btn--fb { display: inline-flex; align-items: center; gap: 8px; }
+
+  .fb-dialog {
+    width: min(560px, calc(100vw - 24px));
+    max-height: calc(100dvh - 24px);
+    padding: 0;
+    border: 1px solid rgba(62, 230, 168, .3);
+    border-radius: 22px;
+    background: linear-gradient(180deg, #152036, #0D1423);
+    color: var(--paper);
+    box-shadow: 0 40px 120px rgba(0, 0, 0, .6);
+  }
+  .fb-dialog::backdrop { background: rgba(4, 7, 14, .72); backdrop-filter: blur(4px); }
+  .fb-dialog[open] { animation: fbIn .22s ease-out; }
+  @keyframes fbIn { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .fb { padding: 24px 26px 22px; display: flex; flex-direction: column; gap: 16px; }
+  .fb__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .fb__top h2 { margin: 0; font-size: 26px; }
+  .fb__close { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--fog); background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .fb__close:hover { color: var(--paper); border-color: var(--paper); }
+  .fb__block { display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .fb__pair { display: grid; grid-template-columns: 1fr 120px; gap: 12px; }
+  .fb__label { font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .stars { display: flex; gap: 4px; }
+  /* звезда из двух слоёв: серая основа и золотая заливка на 0, 50 или 100% — так получаются половинки */
+  /* ряд звёзд шириной ровно по звёздам: пустое место справа на оценку не влияет */
+  .stars { align-self: flex-start; width: max-content; cursor: pointer; border-radius: 10px; touch-action: none; user-select: none; }
+  .stars:focus-visible { outline: 2px solid var(--mint); outline-offset: 4px; }
+  .star { position: relative; display: block; padding: 4px; }
+  .star svg { display: block; stroke-width: 1; stroke-linejoin: round; }
+  .star__base { fill: #3E4F70; stroke: #3E4F70; }
+  .star__fill { position: absolute; top: 4px; left: 4px; height: 30px; width: var(--fill, 0px); overflow: hidden; }
+  .star__fill svg { fill: var(--lamp); stroke: var(--lamp); transition: opacity .12s ease; }
+  /* наведение: сколько звёзд будет, если нажать, — полупрозрачным золотом; поставленная оценка — сплошным */
+  .stars.is-preview .star__fill svg { opacity: .5; }
+  .fb__rate { margin-left: 8px; color: var(--lamp); letter-spacing: 0; }
+  .fb input, .fb textarea { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--fog); background: rgba(7, 11, 20, .55); color: var(--paper); font: inherit; font-size: 17px; line-height: 1.45; }
+  .fb textarea { min-height: 84px; resize: vertical; }
+  .fb input:focus, .fb textarea:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px rgba(62, 230, 168, .18); }
+  .fb__trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  .fb__note { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .fb__status { margin: 0; min-height: 1.4em; font-size: 16px; color: var(--muted); }
+  .fb__status.is-error { color: var(--alarm); }
+  /* кулдаун: кнопка приглушена и показывает, сколько ждать */
+  .fb .btn:disabled { opacity: .5; filter: saturate(.35); box-shadow: none; cursor: not-allowed; transform: none; }
+  .fb__thanks { text-align: center; padding: 36px 24px 30px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .fb__thanks b { font-family: var(--display); font-size: 24px; }
+  @media (max-width: 620px) {
+    .fb-cta { flex-direction: column; align-items: flex-start; padding: 24px 22px; }
+    .fb { padding: 20px 18px 18px; }
+    .fb__pair { grid-template-columns: 1fr 96px; }
+    /* в узкой шапке остаётся значок отзыва без подписи */
+    .top__row .btn--ghost.btn--fb { display: inline-flex; padding: 11px 12px; flex: none; }
+    /* название в шапке сжимается и обрезается, а не наезжает на кнопки */
+    .brand { min-width: 0; overflow: hidden; }
+    .brand span { overflow: hidden; text-overflow: ellipsis; }
+    .btn--fb span { display: none; }
+  }
+
+  /* ---------- дополнения: вторая игра ---------- */
+
+  .newgame {
+    display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; max-width: 100%;
+    padding: 9px 14px 9px 9px; border-radius: 999px; border: 1px solid rgba(255, 111, 97, .35);
+    background: rgba(255, 111, 97, .08); color: var(--paper); text-decoration: none; font-size: 15px; line-height: 1.3;
+  }
+  .newgame span { flex: none; padding: 4px 10px; border-radius: 999px; background: #FF6F61; color: #1B0806; font: 800 12px var(--display); letter-spacing: .04em; }
+  .newgame b { color: #FF9C91; }
+  .newgame:hover { border-color: #FF6F61; }
+  .extra { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 36px; align-items: center; padding: 34px; border-radius: 28px; }
+  .extra__list { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 16px; }
+  .extra__list li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; font-size: 17px; color: #C9D4EA; }
+  .extra__list svg { color: var(--mint); margin-top: 3px; }
+  .extra__list b { color: var(--paper); }
+  .extra__note { margin: 14px 0 0; font-size: 14px; color: var(--muted); }
+  .extra__phone { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 26px; background: #0C1220; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0, 0, 0, .4); }
+  .xchat__head { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+  .xchat__head small { display: block; color: var(--muted); font-size: 12px; }
+  .xava { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 800 12px var(--display); flex: none; }
+  .xmsg { align-self: flex-start; max-width: 88%; padding: 9px 13px; border-radius: 16px 16px 16px 6px; background: #1B2538; font-size: 15px; position: relative; }
+  .xmsg--flag { box-shadow: inset 0 0 0 2px #FF5A4E; }
+  .xmsg--flag::after { content: "🚩"; position: absolute; right: -10px; top: -10px; font-size: 16px; }
+  .xmsg--me { align-self: flex-end; background: #1F6F5C; border-radius: 16px 16px 6px 16px; }
+  .xsep { align-self: center; font-size: 12px; color: var(--muted); padding: 2px 10px; border-radius: 10px; background: rgba(255, 255, 255, .05); margin: 4px 0; }
+  @media (max-width: 860px) { .extra { grid-template-columns: 1fr; padding: 24px 18px; } }
+
+  /* ---------- узкие экраны ---------- */
+
+  /* Шапка: название в одну строку и ужимается само, кнопки свой размер не теряют —
+     иначе на средней ширине название переносилось и наезжало на кнопки */
+  .brand { flex: 0 1 auto; min-width: 0; }
+  .brand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top__row .btn { flex: none; }
+  @media (max-width: 900px) {
+    .top__row .btn { padding: 13px 20px; font-size: 15px; }
+    .btn--fb span { display: none; }
+    .top__row .btn--fb { padding: 13px 14px; }
+  }
+  /* две карточки в ряд помещаются только от ~780 px; уже — по одной */
+  @media (max-width: 780px) {
+    .cards { grid-template-columns: 1fr !important; }
+  }
+
+  @media (max-width: 960px) {
+    .hero__grid { grid-template-columns: 1fr; }
+    .hero__shot { transform: none; }
+    .hero__float { animation: none; }
+    .badge--a { left: 8px; } .badge--b { right: 8px; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    .ages, .facts { grid-template-columns: 1fr 1fr; }
+    .split { grid-template-columns: 1fr; gap: 28px; }
+  }
+
+  /* планшет: три кнопки в шапке не помещаются — «Что внутри» есть и на первом экране */
+  @media (max-width: 780px) { .top__row .btn--ghost[href="#about"] { display: none; } }
+
+  /* Шапка подстраивается сама (скрипт fitHeader): если название не влезает целиком,
+     по очереди прячутся кнопки, которые есть и ниже на странице */
+  header.top.no-about .btn--ghost[href="#about"],
+  header.top.no-teach .btn--ghost[href="#teachers"],
+  header.top.no-fb .btn--fb { display: none !important; }
+  header.top.no-fbtext .btn--fb span { display: none !important; }
+  header.top.no-fbtext .top__row .btn--fb { padding-inline: 14px; }
+  header.top.brand-sm .brand { font-size: 15px !important; gap: 8px; }
+  header.top.brand-sm .brand img { width: 38px; height: 38px; }
+  header.top.brand-xs .brand { font-size: 13px !important; gap: 6px; }
+  header.top.brand-xs .brand img { width: 34px; height: 34px; }
+  header.top.brand-xs .top__row .btn--go { padding: 11px 14px !important; font-size: 14px !important; }
+
+  /* совсем узкий экран: в шапке остаётся только значок, название есть в заголовке ниже */
+  @media (max-width: 340px) { .brand span { display: none; } }
+
+  @media (max-width: 380px) {
+    .brand { font-size: 13px !important; }
+    .top__row .btn--go { padding: 11px 15px !important; font-size: 14px !important; }
+  }
+
+  @media (max-width: 620px) {
+    body { font-size: 18px; }
+    .btn--big { padding: 20px 26px; font-size: 18px; }
+    .sub { font-size: 18px; }
+    .top__row .btn--ghost { display: none; }
+    .brand { font-size: 15px; gap: 8px; white-space: nowrap; min-width: 0; }
+    .brand img { width: 38px; height: 38px; }
+    .top__row .btn--go { padding: 12px 18px; font-size: 15px; }
+    .cards, .gallery, .ages { grid-template-columns: 1fr; }
+    .facts { gap: 10px; }
+    .fact { padding: 14px; gap: 10px; }
+    .fact .ico { display: none; }
+    .hero__actions .btn { flex: 1 1 100%; }
+    .badge { display: none; }
+    .rise--left, .rise--right { transform: translateY(40px); }
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grid-bg" aria-hidden="true"></div>
+<canvas id="sky" aria-hidden="true"></canvas>
+
+<!-- набор иконок: рисуются один раз, дальше используются через <use> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.6 7-11.2A7 7 0 0 0 5 9.8C5 15.4 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.6"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18.5h3"/><path d="M9.5 8.5l2 2 3.5-3.5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l7.5 2.8v6c0 4.6-3.2 8.2-7.5 9.6-4.3-1.4-7.5-5-7.5-9.6v-6z"/><path d="M8.6 12.2l2.4 2.4 4.4-4.6"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6.5v13.5L9 17.5l6 2.5 6-2.5V4L15 6.5z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2.5"/><path d="M3 9h18M7 14h4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.6 4-5.2 7.5-5.2s6.3 1.6 7.5 5.2"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></symbol>
+    <symbol id="i-game" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10a4 4 0 0 1 4 4v3.5a2.5 2.5 0 0 1-4.4 1.6L15 14H9l-1.6 2.1A2.5 2.5 0 0 1 3 14.5V11a4 4 0 0 1 4-4z"/><path d="M8 10v3M6.5 11.5h3"/><circle cx="16" cy="11" r=".8" fill="currentColor"/></symbol>
+    <symbol id="i-case" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></symbol>
+    <symbol id="i-bank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5M5 9v9M9.5 9v9M14.5 9v9M19 9v9M3 20.5h18"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.8C19.5 15.4 12 20 12 20z"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5v4h-4"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13.5C7 18 10 18.5 12 20c2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5V20"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11"/></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3.5a6 6 0 0 0-3.6 10.8c.8.6 1.1 1.3 1.1 2.2h5c0-.9.3-1.6 1.1-2.2A6 6 0 0 0 12 3.5z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3.5h10V8"/><rect x="3.5" y="8" width="17" height="8.5" rx="2"/><path d="M7 13.5h10v7H7z"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14 2.5V7.5h5M9 12h7M9 15.5h7M9 9h3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+
+<header class="top">
+  <div class="wrap top__row">
+    <a class="brand" href="/"><img src="/favicon.svg" alt=""> <span class="grad-text">Восемь ловушек</span></a>
+    <a class="btn btn--ghost" href="#about">Что внутри</a>
+    <a class="btn btn--ghost" href="#teachers">Учителям</a>
+    <a class="btn btn--ghost btn--fb" href="#feedback" data-feedback aria-label="Отзыв об игре"><svg width="18" height="18"><use href="#i-chat"/></svg><span>Отзыв</span></a>
+    <a class="btn btn--go" href="/play/">Играть</a>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="hero__grid">
+      <div>
+        <span class="eyebrow rise">Игра о безопасности</span>
+        <h1 class="rise grad-title" style="--d:80ms">Восемь<br>ловушек</h1>
+        <p class="lede rise" style="--d:160ms">
+          Ночной район, светящиеся точки, и в каждой кто-то хочет тебя обмануть:
+          звонок из «банка», ссылка на подарок, слишком удачная работа.
+          Выбери, как поступить — игра объяснит, чем это заканчивается в жизни.
+        </p>
+
+        <div class="hero__actions rise" style="--d:240ms">
+          <a class="btn btn--go btn--big" href="/play/">
+            Играть в браузере
+            <svg width="18" height="18"><use href="#i-play"/></svg>
+          </a>
+          <a class="btn btn--ghost btn--big" href="#about">Что внутри</a>
+        </div>
+
+        <a class="newgame rise" style="--d:300ms" href="#extra"><span>Новое</span> Вторая игра «Двойной удар» — мошенники в мессенджере <b>→</b></a>
+
+        <div class="trust rise" style="--d:320ms">
+          <span><svg width="16" height="16" style="color:var(--mint)"><use href="#i-check"/></svg> Без установки</span>
+          <span><svg width="16" height="16" style="color:var(--mint)"><use href="#i-check"/></svg> Без регистрации</span>
+          <span><svg width="16" height="16" style="color:var(--mint)"><use href="#i-check"/></svg> Без сбора данных</span>
+        </div>
+      </div>
+
+      <div class="hero__visual rise rise--right" style="--d:200ms">
+        <div class="hero__float"><div class="shot hero__shot">
+          <div class="shot__bar">
+            <span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__dot"></span>
+            <span class="shot__name">Трейлер игры · 45 секунд</span>
+          </div>
+          <div class="promo">
+            <video id="promoVideo" poster="/assets/promo-poster.webp?v=4"
+                   width="1280" height="720" preload="metadata" playsinline
+                   aria-label="Трейлер игры «Восемь ловушек»">
+              <source src="/assets/promo.webm?v=4" type="video/webm">
+              <source src="/assets/promo.mp4?v=4" type="video/mp4">
+            </video>
+            <button class="promo__play" id="promoPlay" type="button">
+              <span class="promo__btn"><svg width="30" height="30"><use href="#i-play"/></svg></span>
+              <span class="promo__label">Смотреть трейлер</span>
+            </button>
+          </div>
+        </div></div>
+        <p class="promo__note">Вербовка, звонки «из банка», фальшивые подработки — что ждёт в игре, за 45 секунд.</p>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div class="fact rise" style="--d:0ms"><span class="ico"><svg><use href="#i-cards"/></svg></span><div><b class="grad-text" data-count="78">78</b><span>ситуаций</span></div></div>
+      <div class="fact rise" style="--d:90ms"><span class="ico"><svg><use href="#i-layers"/></svg></span><div><b class="grad-text" data-count="4">4</b><span>уровня по возрасту</span></div></div>
+      <div class="fact rise" style="--d:180ms"><span class="ico"><svg><use href="#i-map"/></svg></span><div><b class="grad-text" data-count="24">24</b><span>темы на карте</span></div></div>
+      <div class="fact rise" style="--d:270ms"><span class="ico"><svg><use href="#i-clock"/></svg></span><div><b class="grad-text" data-count="10">10</b><span>минут на заход</span></div></div>
+    </div>
+  </div>
+</div>
+
+<section id="about">
+  <div class="wrap">
+    <div class="head rise">
+      <span class="eyebrow">Что внутри</span>
+      <h2>Три способа попасться — <span class="grad-text">и три способа научиться</span></h2>
+      <p class="sub">Ситуации приходят не только с карты. Как и в жизни: что-то случается на улице, что-то — в телефоне, а что-то требует быстрой реакции.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card glass rise" style="--d:0ms">
+        <span class="ico ico--lg"><svg><use href="#i-pin"/></svg></span>
+        <h3>Точки на карте</h3>
+        <p>Подошёл — получил ситуацию. Звонок мошенника, незнакомец в сети, фишинговая ссылка, шантаж. В новых заданиях мошенник не сдаётся после первого отказа и давит дальше — как в жизни.</p>
+      </div>
+      <div class="card glass rise" style="--d:120ms">
+        <span class="ico ico--lg"><svg><use href="#i-phone"/></svg></span>
+        <h3>Телефон</h3>
+        <p>Пока идёшь по району, приходят сообщения и звонки — прямо как настоящие. Звонок ставит игру на паузу, и трубку можно просто сбросить. Это тоже ответ.</p>
+      </div>
+      <div class="card glass rise" style="--d:240ms">
+        <span class="ico ico--lg"><svg><use href="#i-target"/></svg></span>
+        <h3>Тир</h3>
+        <p>Для тех, кто постарше: ответы висят мишенями, стрелять нужно в правильный. Иногда верных несколько — надо выбить все, и промах заканчивает раунд.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head head--center rise">
+      <span class="eyebrow">Как это выглядит</span>
+      <h2>Целый район, <span class="grad-text">по которому ходишь сам</span></h2>
+      <p class="sub">Город с улицами, машинами и прохожими. Точки заданий каждый раз стоят на новых местах, поэтому маршрут не выучивается наизусть.</p>
+    </div>
+
+    <div class="gallery">
+      <figure class="rise rise--left">
+        <div class="shot">
+          <div class="shot__bar"><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__name">Карта</span></div>
+          <img src="/assets/shot-map.webp" width="1400" height="840" loading="lazy" alt="Ночной район: улицы, дома, машины и светящиеся точки заданий">
+        </div>
+        <figcaption><span class="ico ico--sm"><svg><use href="#i-map"/></svg></span><span><b>Район</b>Метро, полицейский пост, магазин и таблички с правилами прямо на улице.</span></figcaption>
+      </figure>
+
+      <figure class="rise rise--right">
+        <div class="shot">
+          <div class="shot__bar"><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__name">Ситуация</span></div>
+          <img src="/assets/shot-dialog.webp" width="1400" height="840" loading="lazy" alt="Окно ситуации поверх карты: вопрос и три варианта ответа">
+        </div>
+        <figcaption><span class="ico ico--sm"><svg><use href="#i-chat"/></svg></span><span><b>Ситуация</b>Вопрос открывается прямо на карте, варианты каждый раз перемешиваются.</span></figcaption>
+      </figure>
+
+      <figure class="rise rise--left">
+        <div class="shot">
+          <div class="shot__bar"><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__name">Тир</span></div>
+          <img src="/assets/shot-range.webp" width="1400" height="840" loading="lazy" alt="Тир от первого лица: мишени с вариантами ответа и пистолет в руках">
+        </div>
+        <figcaption><span class="ico ico--sm"><svg><use href="#i-target"/></svg></span><span><b>Тир</b>Вид от первого лица, счётчик «выбито 0 из 3» и скины оружия за верные ответы.</span></figcaption>
+      </figure>
+
+      <figure class="rise rise--right">
+        <div class="shot">
+          <div class="shot__bar"><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__name">Вход</span></div>
+          <img src="/assets/shot-start.webp" width="1400" height="840" loading="lazy" alt="Экран входа: аккаунт, выбор персонажа, выбор скина и поле возраста">
+        </div>
+        <figcaption><span class="ico ico--sm"><svg><use href="#i-user"/></svg></span><span><b>Вход</b>Свой аккаунт без пароля, восемь персонажей и девять скинов пистолета: три доступны сразу, остальные открываются за верные ответы.</span></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head rise">
+      <span class="eyebrow">Возраст</span>
+      <h2>Задания подбираются <span class="grad-text">под того, кто играет</span></h2>
+      <p class="sub">Игрок вводит возраст в начале — и дальше видит только то, что касается его. Восьмилетнему не покажут вербовку, взрослому не предложат задачу про школьный чат.</p>
+    </div>
+
+    <div class="ages">
+      <div class="age glass rise rise--zoom" style="--d:0ms">
+        <div class="age__top"><span class="ico"><svg><use href="#i-star"/></svg></span><i>12 заданий</i></div>
+        <b class="grad-text">6–10</b>
+        <span>Не называть код, не говорить адрес, позвать взрослого.</span>
+        <div class="age__bar"><u style="--w:44%"></u></div>
+      </div>
+      <div class="age glass rise rise--zoom" style="--d:110ms">
+        <div class="age__top"><span class="ico"><svg><use href="#i-game"/></svg></span><i>22 задания</i></div>
+        <b class="grad-text">11–14</b>
+        <span>Ссылки на скины, «друг просит код», поддельные голосовые, покупки с рук, «звонок от завуча».</span>
+        <div class="age__bar"><u style="--w:81%"></u></div>
+      </div>
+      <div class="age glass rise rise--zoom" style="--d:220ms">
+        <div class="age__top"><span class="ico"><svg><use href="#i-case"/></svg></span><i>27 заданий</i></div>
+        <b class="grad-text">15–18</b>
+        <span>Лёгкий заработок, карты «для бизнеса», видеозвонок «мамы», «звонок из ФСБ», первый тир.</span>
+        <div class="age__bar"><u style="--w:100%"></u></div>
+      </div>
+      <div class="age glass rise rise--zoom" style="--d:330ms">
+        <div class="age__top"><span class="ico"><svg><use href="#i-bank"/></svg></span><i>17 заданий</i></div>
+        <b class="grad-text">19+</b>
+        <span>«Безопасный счёт», поддельные сайты банков, номинальный директор, документы.</span>
+        <div class="age__bar"><u style="--w:63%"></u></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head rise">
+      <span class="eyebrow">Родителям и учителям</span>
+      <h2>Почему это работает <span class="grad-text">лучше беседы</span></h2>
+    </div>
+
+    <div class="split">
+      <ul class="points">
+        <li class="glass rise rise--left" style="--d:0ms"><span class="ico ico--sm"><svg><use href="#i-heart"/></svg></span><span><b>Без нравоучений</b>Игра не пугает и не читает морали. В каждом разборе — правило, которое работает: код из СМС не говорят никому, торопят — значит обманывают.</span></li>
+        <li class="glass rise rise--left" style="--d:90ms"><span class="ico ico--sm"><svg><use href="#i-shield"/></svg></span><span><b>Ошибаться безопасно</b>Попался в игре — прочитал, почему. В жизни такой второй попытки не бывает.</span></li>
+        <li class="glass rise rise--left" style="--d:180ms"><span class="ico ico--sm"><svg><use href="#i-retry"/></svg></span><span><b>Разбор можно перечитать</b>В пройденную точку возвращаются пешком или нажатием на полоску вверху экрана.</span></li>
+        <li class="glass rise rise--left" style="--d:270ms"><span class="ico ico--sm"><svg><use href="#i-sound"/></svg></span><span><b>Читает вслух</b>У каждого вопроса есть кнопка озвучки — для тех, кто читает медленно.</span></li>
+        <li class="glass rise rise--left" style="--d:360ms"><span class="ico ico--sm"><svg><use href="#i-screen"/></svg></span><span><b>Видно с проектора</b>Три размера текста, последний — специально для показа классу.</span></li>
+      </ul>
+
+      <div class="note glass rise rise--right" style="--d:150ms">
+        <span class="ico ico--lg"><svg><use href="#i-bulb"/></svg></span>
+        <h3>Что остаётся в голове после прохождения</h3>
+        <ul>
+          <li>Код из СМС не называют никому — ни банку, ни полиции, ни поддержке</li>
+          <li>Если торопят и просят молчать — это и есть обман</li>
+          <li>Проверять нужно самому и по своему каналу связи</li>
+          <li>Рассказать взрослым — не стыдно, а единственный рабочий выход</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="extra">
+  <div class="wrap">
+    <div class="head rise">
+      <span class="eyebrow">Дополнения</span>
+      <h2>Вторая игра: <span class="grad-text">«Двойной удар»</span></h2>
+      <p class="sub">Отдельная игра про самую опасную схему последних лет. Сначала «новая знакомая» зовёт гулять и просит адрес, потом пишет «майор ФСБ» и пугает статьёй за пособничество.</p>
+    </div>
+    <div class="extra glass rise">
+      <div class="extra__text">
+        <ul class="extra__list">
+          <li><svg width="20" height="20"><use href="#i-chat"/></svg><span><b>Телефон и мессенджер.</b> Несколько чатов одновременно, звонки, «удостоверения» и «постановления» в переписке.</span></li>
+          <li><svg width="20" height="20"><use href="#i-layers"/></svg><span><b>Пять уровней.</b> От одной «знакомой» до целой команды мошенников: «ФСБ», «Центробанк», «Госуслуги», взломанный друг.</span></li>
+          <li><svg width="20" height="20"><use href="#i-target"/></svg><span><b>Красные флажки.</b> Нажимаешь на подозрительные сообщения, в конце уровня — разбор: что нашёл, что пропустил и почему это обман.</span></li>
+        </ul>
+        <div class="dl">
+          <a class="btn btn--go" href="/udar/">Играть в «Двойной удар» <svg width="18" height="18"><use href="#i-play"/></svg></a>
+        </div>
+        <p class="extra__note">Для подростков от 12 лет и взрослых. Тоже бесплатно и без регистрации.</p>
+      </div>
+      <div class="extra__phone" aria-hidden="true">
+        <div class="xchat__head"><span class="xava" style="background:#E9559B">А</span><div><b>Алина</b><small>в сети</small></div></div>
+        <div class="xmsg">Давай погуляем в субботу? 🥰</div>
+        <div class="xmsg xmsg--flag">Скинь геолокацию, где ты живёшь</div>
+        <div class="xsep">через полчаса</div>
+        <div class="xchat__head"><span class="xava" style="background:#2F5BD8">МС</span><div><b>Майор Соколов А. В.</b><small>ФСБ России</small></div></div>
+        <div class="xmsg xmsg--flag">Вы проходите по делу как пособник. Родителям — ни слова.</div>
+        <div class="xmsg xmsg--me">Заблокировать и рассказать маме</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head head--center rise">
+      <span class="eyebrow">Как играть</span>
+      <h2>Ничего <span class="grad-text">устанавливать не нужно</span></h2>
+      <p class="sub">Игра открывается в браузере на компьютере и на телефоне. Интернет нужен только чтобы открыть страницу — дальше она работает даже без сети.</p>
+    </div>
+
+    <div class="keys rise" style="justify-content:center">
+      <span class="key"><b>WASD</b> идти</span>
+      <span class="key"><b>←↑↓→</b> тоже идти</span>
+      <span class="key"><b>Палец</b> вести по экрану на телефоне</span>
+      <span class="key"><b>T</b> телефон</span>
+      <span class="key"><b>M</b> метро</span>
+      <span class="key"><b>1–5</b> выбрать ответ</span>
+    </div>
+  </div>
+</section>
+
+<section id="teachers">
+  <div class="wrap">
+    <div class="head rise">
+      <span class="eyebrow">Учителям</span>
+      <h2>Всё для урока <span class="grad-text">в одном месте</span></h2>
+      <p class="sub">Игра рассчитана на показ классу через проектор. Здесь — материалы, чтобы провести занятие без подготовки.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card glass rise" style="--d:0ms">
+        <span class="ico ico--lg"><svg><use href="#i-shield"/></svg></span>
+        <h3>Памятка</h3>
+        <p>Четыре признака обмана и что делать, если что-то случилось. Лист А4 для печати или картинка для проектора и чата класса.</p>
+        <div class="dl">
+          <a class="btn btn--go" href="/teachers/pamyatka.html"><svg width="18" height="18"><use href="#i-print"/></svg> Открыть и распечатать</a>
+          <a class="btn btn--ghost" href="/teachers/pamyatka.png" download><svg width="18" height="18"><use href="#i-download"/></svg> Картинкой</a>
+        </div>
+      </div>
+      <div class="card glass rise" style="--d:120ms">
+        <span class="ico ico--lg"><svg><use href="#i-doc"/></svg></span>
+        <h3>Все вопросы игры</h3>
+        <p>Документ Word: описание игры, все 78 ситуаций по возрастам с отметкой верного ответа, вторые ходы мошенника и список достижений.</p>
+        <div class="dl">
+          <a class="btn btn--go" href="/teachers/voprosy.docx" download><svg width="18" height="18"><use href="#i-download"/></svg> Скачать .docx</a>
+        </div>
+      </div>
+      <div class="card glass rise" style="--d:240ms">
+        <span class="ico ico--lg"><svg><use href="#i-book"/></svg></span>
+        <h3>Текст выступления</h3>
+        <p>Сценарий урока на 20 минут и короткая версия на 7: что говорить, где показывать игру, вопросы залу и ответы на частые вопросы.</p>
+        <div class="dl">
+          <a class="btn btn--go" href="/teachers/vystuplenie.html"><svg width="18" height="18"><use href="#i-book"/></svg> Читать с телефона</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="tips glass rise">
+      <span class="ico"><svg><use href="#i-bulb"/></svg></span>
+      <div>
+        <b>Как показывать на уроке</b>
+        <span>Введите настоящий возраст класса и нажмите <kbd>А++</kbd> в верхней панели — текст станет крупным. У каждого вопроса есть кнопка «Прочитать вслух». Голосуйте руками и нажимайте вариант, который выбрал класс, даже неверный: ошибка на экране объясняет лучше любых слов. Памятка открывается кнопкой в левом нижнем углу игры.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="feedback">
+  <div class="wrap">
+    <div class="fb-cta glass rise">
+      <span class="ico ico--lg"><svg><use href="#i-chat"/></svg></span>
+      <div class="fb-cta__text">
+        <h2>Как тебе <span class="grad-text">игра?</span></h2>
+        <p class="sub">Напиши, что понравилось и чего не хватает. Каждый отзыв читаем — по ним игра и меняется.</p>
+        <p class="fb__avg" id="fbAvg" hidden></p>
+      </div>
+      <button class="btn btn--go btn--big" type="button" data-feedback>Оставить отзыв <svg width="18" height="18"><use href="#i-chat"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<!-- окно с формой отзыва: открывается любой кнопкой с data-feedback и ссылкой /#feedback -->
+<dialog class="fb-dialog" id="fbDialog" aria-labelledby="fbTitle">
+  <form class="fb" id="fbForm" novalidate>
+    <div class="fb__top">
+      <h2 id="fbTitle">Отзыв об игре</h2>
+      <button type="button" class="fb__close" id="fbClose" aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="fb__block">
+      <span class="fb__label" id="fbRateLabel">Оценка <span class="fb__rate" id="fbRateText"></span></span>
+      <div class="stars" id="fbStars" role="slider" tabindex="0" aria-labelledby="fbRateLabel" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0" aria-valuetext="без оценки">
+            <span class="star" data-v="1" aria-hidden="true"><svg class="star__base" width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg><span class="star__fill"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg></span></span>
+            <span class="star" data-v="2" aria-hidden="true"><svg class="star__base" width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg><span class="star__fill"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg></span></span>
+            <span class="star" data-v="3" aria-hidden="true"><svg class="star__base" width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg><span class="star__fill"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg></span></span>
+            <span class="star" data-v="4" aria-hidden="true"><svg class="star__base" width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg><span class="star__fill"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg></span></span>
+            <span class="star" data-v="5" aria-hidden="true"><svg class="star__base" width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg><span class="star__fill"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg></span></span>
+      </div>
+    </div>
+
+    <div class="fb__pair">
+      <div class="fb__block">
+        <label class="fb__label" for="fbName">Имя</label>
+        <input type="text" id="fbName" maxlength="60" autocomplete="given-name" placeholder="Например: Маша">
+      </div>
+      <div class="fb__block fb__block--age">
+        <label class="fb__label" for="fbAge">Возраст</label>
+        <input type="number" id="fbAge" min="3" max="120" inputmode="numeric" placeholder="лет">
+      </div>
+    </div>
+
+    <div class="fb__block">
+      <label class="fb__label" for="fbText">Отзыв об игре</label>
+      <textarea id="fbText" maxlength="1500" rows="3" placeholder="Что понравилось, что было непонятно или сложно"></textarea>
+    </div>
+
+    <div class="fb__block">
+      <label class="fb__label" for="fbWish">Что можно добавить</label>
+      <textarea id="fbWish" maxlength="1500" rows="3" placeholder="Например: ловушки про игры, больше заданий в метро"></textarea>
+    </div>
+
+    <!-- ловушка для ботов: человек это поле не видит -->
+    <input type="text" class="fb__trap" id="fbWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+    <p class="fb__note">Имя и возраст — по желанию. Не пиши фамилию, телефон и адрес. Отзыв прочитают только авторы игры.</p>
+    <button class="btn btn--go" type="submit" id="fbSend">Отправить отзыв</button>
+    <p class="fb__status" id="fbStatus" role="status"></p>
+  </form>
+</dialog>
+
+<section>
+  <div class="wrap">
+    <div class="final rise rise--zoom">
+      <span class="ico ico--lg"><svg><use href="#i-shield"/></svg></span>
+      <h2>Проверь, <span class="grad-text">поймают ли тебя</span></h2>
+      <p class="sub">Одно прохождение — минут десять. В конце видно, где именно ты ошибся, и можно получить сертификат со своим именем и результатом.</p>
+      <p style="margin-top:30px">
+        <a class="btn btn--go btn--big" href="/play/">Начать игру <svg width="18" height="18"><use href="#i-play"/></svg></a>
+      </p>
+      <p style="margin-top:14px"><a class="btn btn--ghost" href="#feedback" data-feedback>Уже играл? Оставь отзыв</a></p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot__row">
+    <span>«Восемь ловушек» (Vosem Lovushek) — учебная игра о безопасности в сети и в жизни</span>
+    <span>Работает без регистрации и без сбора данных · <a href="#feedback" data-feedback>оставить отзыв</a></span>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- появление блоков при прокрутке ---------- */
+
+  var blocks = document.querySelectorAll(".rise");
+  function reveal(el) { el.classList.add("seen"); }
+
+  if (calm || !("IntersectionObserver" in window)) {
+    for (var i = 0; i < blocks.length; i++) reveal(blocks[i]);
+  } else {
+    var watcher = new IntersectionObserver(function (items) {
+      items.forEach(function (item) {
+        if (!item.isIntersecting && item.boundingClientRect.top > 0) return;
+        reveal(item.target);
+        countUp(item.target);
+        watcher.unobserve(item.target);
+      });
+    }, { rootMargin: "0px 0px -10% 0px", threshold: 0.12 });
+    for (var j = 0; j < blocks.length; j++) watcher.observe(blocks[j]);
+  }
+
+  /* цифры набегают от нуля, когда блок появился */
+  function countUp(el) {
+    var nums = el.querySelectorAll("[data-count]");
+    for (var k = 0; k < nums.length; k++) (function (node) {
+      var goal = Number(node.getAttribute("data-count"));
+      var t0 = performance.now();
+      (function tick(now) {
+        var p = Math.min(1, (now - t0) / 1100);
+        node.textContent = Math.round(goal * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(tick);
+      })(t0);
+    })(nums[k]);
+  }
+
+  /* ---------- трейлер: запуск по кнопке, со звуком ---------- */
+
+  var video = document.getElementById("promoVideo");
+  var play = document.getElementById("promoPlay");
+  if (video && play) {
+    var float = video.closest(".hero__float");
+    play.addEventListener("click", function () {
+      play.hidden = true;
+      video.controls = true;
+      if (float) float.classList.add("is-playing");
+      var started = video.play();
+      if (started && started.catch) started.catch(function () { play.hidden = false; });
+    });
+    video.addEventListener("ended", function () {
+      video.controls = false;
+      video.currentTime = 0;
+      play.hidden = false;
+      if (float) float.classList.remove("is-playing");
+    });
+  }
+
+  /* ---------- отзыв: окно с формой → /api/feedback ---------- */
+
+  var dialog = document.getElementById("fbDialog");
+  var form = document.getElementById("fbForm");
+  if (dialog && form) {
+    var formHtml = form.innerHTML;
+    var rating = 0;
+
+    // Кулдаун: сервер принимает с одного компьютера не больше 20 отзывов за 10 минут и 120 за сутки.
+    // Компьютер узнаёт по случайной метке — в ней нет ничего о человеке. Если сервер ответил
+    // «подожди», помним тут же, до какого времени
+    function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+    function clientId() {
+      var id = store("lovushki.fbClient");
+      if (!id) {
+        id = "";
+        for (var ci = 0; ci < 24; ci++) id += "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36));
+        store("lovushki.fbClient", id);
+      }
+      return id || "";
+    }
+    function waitLeft() { return Math.max(0, (Number(store("lovushki.fbWait")) || 0) - Date.now()); }
+    function minutes(ms) { return Math.max(1, Math.ceil(ms / 60000)); }
+    var waitTimer = null;
+
+    function openFeedback() {
+      if (typeof dialog.showModal === "function") { if (!dialog.open) dialog.showModal(); }
+      else dialog.setAttribute("open", "");
+      var first = document.getElementById("fbName");
+      if (first) setTimeout(function () { first.focus({ preventScroll: true }); }, 60);
+    }
+    function closeFeedback() {
+      if (typeof dialog.close === "function") dialog.close(); else dialog.removeAttribute("open");
+      if (location.hash === "#feedback") history.replaceState(null, "", location.pathname + location.search);
+    }
+
+    var openers = document.querySelectorAll("[data-feedback]");
+    for (var oi = 0; oi < openers.length; oi++) openers[oi].addEventListener("click", function (e) {
+      e.preventDefault();
+      openFeedback();
+    });
+    // из игры ведёт ссылка /#feedback — окно открывается сразу
+    if (location.hash === "#feedback") setTimeout(openFeedback, 300);
+    dialog.addEventListener("click", function (e) { if (e.target === dialog) closeFeedback(); });
+    dialog.addEventListener("close", function () {
+      if (location.hash === "#feedback") history.replaceState(null, "", location.pathname + location.search);
+    });
+
+    function bindForm() {
+      var starBtns = form.querySelectorAll(".star");
+      var starsBox = document.getElementById("fbStars");
+      var rateText = document.getElementById("fbRateText");
+      var status = document.getElementById("fbStatus");
+      var send = document.getElementById("fbSend");
+      rating = 0;
+      // n — от 0 до 5 с шагом 0,5: 4,5 — четыре полные звезды и половинка пятой
+      function paintStars(n, preview) {
+        starsBox.classList.toggle("is-preview", !!preview && n !== rating);
+        for (var i = 0; i < starBtns.length; i++) {
+          var part = Math.max(0, Math.min(1, n - i));
+          starBtns[i].style.setProperty("--fill", (part * 30) + "px");
+        }
+      }
+      function setRating(n) {
+        rating = Math.max(0, Math.min(5, Math.round(n * 2) / 2));
+        paintStars(rating);
+        var label = rating ? String(rating).replace(".", ",") + " из 5" : "";
+        rateText.textContent = label;
+        starsBox.setAttribute("aria-valuenow", rating);
+        starsBox.setAttribute("aria-valuetext", label || "без оценки");
+      }
+      // где по звёздам указали: левая половина звезды — половинка, правая — целая
+      // null — указатель не над звёздами: подсказку не показываем.
+      // В узкой щели между звёздами считаем, что выбрана предыдущая звезда целиком — без мигания
+      function valueAt(e) {
+        var first = starBtns[0].getBoundingClientRect(), last = starBtns[starBtns.length - 1].getBoundingClientRect();
+        if (e.clientY < first.top || e.clientY > first.bottom || e.clientX < first.left || e.clientX > last.right) return null;
+        for (var i = 0; i < starBtns.length; i++) {
+          var r = starBtns[i].getBoundingClientRect();
+          if (e.clientX < r.left) return i;
+          if (e.clientX <= r.right) return i + (e.clientX < r.left + r.width / 2 ? 0.5 : 1);
+        }
+        return null;
+      }
+      starsBox.addEventListener("pointermove", function (e) {
+        if (e.pointerType !== "mouse") return;
+        var v = valueAt(e);
+        if (v === null) paintStars(rating); else paintStars(v, true);
+      });
+      starsBox.addEventListener("pointerleave", function () { paintStars(rating); });
+      starsBox.addEventListener("pointerdown", function (e) {
+        var v = valueAt(e);
+        if (v === null) return;
+        setRating(rating === v ? 0 : v);   // повторное нажатие на ту же оценку — сбросить
+      });
+      starsBox.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight" || e.key === "ArrowUp") { setRating(rating + 0.5); e.preventDefault(); }
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") { setRating(rating - 0.5); e.preventDefault(); }
+      });
+      document.getElementById("fbClose").addEventListener("click", closeFeedback);
+
+      function say(msg, kind) {
+        status.textContent = msg;
+        status.className = "fb__status" + (kind ? " is-" + kind : "");
+      }
+      // пока идёт кулдаун — кнопка неактивна и показывает, сколько осталось
+      function syncWait() {
+        clearInterval(waitTimer);
+        var left = waitLeft();
+        if (!left) { send.disabled = false; send.textContent = "Отправить отзыв"; return; }
+        send.disabled = true;
+        send.textContent = "Можно через " + minutes(left) + " мин.";
+        waitTimer = setInterval(syncWait, 15000);
+      }
+      syncWait();
+      form.onsubmit = function (e) {
+        e.preventDefault();
+        var text = document.getElementById("fbText").value.trim();
+        var wish = document.getElementById("fbWish").value.trim();
+        if (!text && !wish) { say("Напиши хотя бы пару слов — в отзыве или в том, что добавить.", "error"); return; }
+        if (waitLeft()) { syncWait(); say("Слишком много отзывов с этого компьютера подряд. Следующий можно через " + minutes(waitLeft()) + " мин.", "error"); return; }
+        send.disabled = true;
+        say("Отправляю…");
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/feedback");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.timeout = 15000;
+        xhr.onload = function () {
+          send.disabled = false;
+          if (xhr.status === 200) {
+            form.innerHTML = '<div class="fb__thanks"><span class="ico ico--lg"><svg><use href="#i-heart"/></svg></span>' +
+              '<b>Спасибо за отзыв!</b><span style="color:var(--muted)">Он уже у нас — обязательно прочитаем.</span>' +
+              '<button type="button" class="btn btn--ghost" id="fbMore">Написать ещё</button></div>';
+            document.getElementById("fbMore").addEventListener("click", function () { form.innerHTML = formHtml; bindForm(); });
+            loadStats();
+          } else if (xhr.status === 429) {
+            var info = {};
+            try { info = JSON.parse(xhr.responseText) || {}; } catch (e) {}
+            if (info.wait) store("lovushki.fbWait", String(Date.now() + info.wait * 1000));
+            syncWait();
+            say(info.message || "Слишком много отзывов подряд. Попробуй через минуту.", "error");
+          } else {
+            say("Не получилось отправить. Проверь интернет и попробуй ещё раз.", "error");
+          }
+        };
+        xhr.onerror = xhr.ontimeout = function () {
+          send.disabled = false;
+          say("Не получилось отправить. Проверь интернет и попробуй ещё раз.", "error");
+        };
+        xhr.send(JSON.stringify({
+          rating: rating || null,
+          name: document.getElementById("fbName").value,
+          age: document.getElementById("fbAge").value,
+          text: text,
+          wish: wish,
+          website: document.getElementById("fbWebsite").value,
+          client: clientId()
+        }));
+      };
+    }
+    bindForm();
+  }
+
+  /* средняя оценка — показываем, когда отзывов набралось хотя бы три */
+  function plural(n, one, few, many) {
+    var m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+  function loadStats() {
+    var avg = document.getElementById("fbAvg");
+    if (!avg || !window.XMLHttpRequest) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/api/feedback/stats");
+    xhr.onload = function () {
+      try {
+        var st = JSON.parse(xhr.responseText);
+        if (st.count >= 3 && st.average) {
+          avg.innerHTML = '<b>★ ' + String(st.average).replace(".", ",") + '</b> средняя оценка · ' +
+            st.count + " " + plural(st.count, "отзыв", "отзыва", "отзывов");
+          avg.hidden = false;
+        }
+      } catch (err) {}
+    };
+    xhr.send();
+  }
+  loadStats();
+
+  /* ---------- подсветка карточки под курсором ---------- */
+
+  var cards = document.querySelectorAll(".glass");
+  for (var c = 0; c < cards.length; c++) cards[c].addEventListener("pointermove", function (e) {
+    var r = this.getBoundingClientRect();
+    this.style.setProperty("--mx", (e.clientX - r.left) + "px");
+    this.style.setProperty("--my", (e.clientY - r.top) + "px");
+  });
+
+  /* ---------- шапка: название всегда целиком ---------- */
+
+  var top = document.querySelector("header.top");
+  var brandText = top.querySelector(".brand span");
+  var row = top.querySelector(".top__row");
+  // что прятать, по порядку: эти кнопки повторяются ниже на странице
+  var FIT_STEPS = ["no-about", "no-fbtext", "no-teach", "brand-sm", "no-fb", "brand-xs"];
+  function headerCut() {
+    return brandText.scrollWidth > brandText.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1;
+  }
+  function fitHeader() {
+    FIT_STEPS.forEach(function (c) { top.classList.remove(c); });
+    for (var i = 0; i < FIT_STEPS.length && headerCut(); i++) top.classList.add(FIT_STEPS[i]);
+  }
+  fitHeader();
+  window.addEventListener("resize", fitHeader);
+  // шрифт с сайта шире запасного: после его загрузки проверяем ещё раз
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitHeader);
+
+  /* ---------- светящиеся частицы на фоне ---------- */
+
+  var cvs = document.getElementById("sky");
+  var g = cvs.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0, dots = [], running = true;
+  var COLORS = ["62,230,168", "34,211,197", "73,195,245", "62,230,168", "255,196,107"];
+
+  // круглое пятно со свечением рисуем один раз на цвет, потом только копируем — так быстро
+  var sprites = COLORS.map(function (rgb) {
+    var s = document.createElement("canvas");
+    s.width = s.height = 64;
+    var x = s.getContext("2d");
+    var grad = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(" + rgb + ",1)");
+    grad.addColorStop(.18, "rgba(" + rgb + ",.85)");
+    grad.addColorStop(.45, "rgba(" + rgb + ",.22)");
+    grad.addColorStop(1, "rgba(" + rgb + ",0)");
+    x.fillStyle = grad;
+    x.fillRect(0, 0, 64, 64);
+    return s;
+  });
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    cvs.width = W * dpr;
+    cvs.height = H * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var want = Math.round(Math.min(40, Math.max(14, W * H / 42000)));
+    while (dots.length < want) dots.push(spawn());
+    dots.length = want;
+  }
+
+  function spawn() {
+    var depth = Math.random();
+    var angle = Math.random() * Math.PI * 2;
+    var pace = .75 + depth * .5;           // доля от SKY_CROSS: дальние медленнее, ближние быстрее
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: 6 + depth * 20,
+      angle: angle,
+      turn: (Math.random() - .5) * .06,    // плавный изгиб траектории, радиан в секунду
+      pace: pace,
+      depth: depth,
+      sprite: sprites[Math.floor(Math.random() * sprites.length)],
+      phase: Math.random() * Math.PI * 2,
+      speed: .25 + Math.random() * .45     // мерцание: медленное, без моргания
+    };
+  }
+
+  // Скорость считается по времени, а не по кадрам: на мониторе 144 Гц частицы
+  // летят так же медленно, как на 60 Гц
+  var smoothScroll = window.scrollY, lastTime = 0;
+  var SKY_CROSS = 8;                       // секунд, за которые частица в среднем пролетает экран по ширине
+
+  function frame(now) {
+    if (!running) return;
+    var dt = lastTime ? Math.min(.05, (now - lastTime) / 1000) : 0;
+    lastTime = now;
+    g.clearRect(0, 0, W, H);
+    g.globalCompositeOperation = "lighter";
+
+    // при прокрутке частицы чуть сдвигаются — ближние сильнее, получается глубина;
+    // прокрутка сглажена, поэтому рывок колесом не швыряет их, а плавно уводит
+    var prev = smoothScroll;
+    smoothScroll += (window.scrollY - smoothScroll) * Math.min(1, dt * 4);
+    var shift = smoothScroll - prev;
+
+    for (var n = 0; n < dots.length; n++) {
+      var d = dots[n];
+      d.angle += d.turn * dt;
+      var v = W / SKY_CROSS * d.pace * dt;
+      d.x += Math.cos(d.angle) * v;
+      d.y += Math.sin(d.angle) * v - shift * (.03 + d.depth * .09);
+      // ушла за край — появляется с другой стороны
+      if (d.y < -30) d.y = H + 20;
+      if (d.y > H + 30) d.y = -20;
+      if (d.x < -30) d.x = W + 20;
+      if (d.x > W + 30) d.x = -20;
+
+      var twinkle = .35 + .65 * (.5 + .5 * Math.sin(now / 1000 * d.speed + d.phase));
+      g.globalAlpha = (.22 + d.depth * .55) * twinkle;
+      var s = d.size;
+      g.drawImage(d.sprite, d.x - s / 2, d.y - s / 2, s, s);
+    }
+    g.globalAlpha = 1;
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  window.addEventListener("resize", resize);
+
+  if (calm) {
+    // без анимации: рисуем один неподвижный кадр
+    running = false;
+    g.globalCompositeOperation = "lighter";
+    dots.forEach(function (d) {
+      g.globalAlpha = .2 + d.depth * .4;
+      g.drawImage(d.sprite, d.x - d.size / 2, d.y - d.size / 2, d.size, d.size);
+    });
+  } else {
+    requestAnimationFrame(frame);
+    // во вкладке в фоне не тратим батарею
+    document.addEventListener("visibilitychange", function () {
+      var was = running;
+      running = !document.hidden;
+      if (running && !was) requestAnimationFrame(frame);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

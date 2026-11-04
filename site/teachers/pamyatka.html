@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Памятка — Восемь ловушек</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon-120.png" type="image/png" sizes="120x120">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="8 ловушек">
+<link rel="stylesheet" href="/assets/fonts.css">
+<style>
+  /* Памятка печатается на А4 и читается с телефона. Светлая — чтобы не тратить краску. */
+  :root {
+    --paper: #FFFFFF;
+    --ink: #0E1726;
+    --muted: #4B5870;
+    --line: #DCE5EE;
+    --tint: #EAFBF5;
+    --accent: #12A88A;
+    --grad: linear-gradient(135deg, #3EE6A8 0%, #22D3C5 45%, #49C3F5 100%);
+    --display: "Unbounded", system-ui, sans-serif;
+    --body: "Golos Text", "Segoe UI", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { background: #E9EEF3; }
+  body { margin: 0; font-family: var(--body); color: var(--ink); line-height: 1.5; padding-block: 24px; padding-inline: 16px; }
+
+  .sheet {
+    width: min(210mm, 100%);
+    margin: 0 auto;
+    background: var(--paper);
+    border-radius: 18px;
+    padding: clamp(22px, 5vw, 14mm);
+    box-shadow: 0 20px 50px rgba(14, 23, 38, .12);
+  }
+
+  .top { display: flex; align-items: center; gap: 16px; }
+  .top img { width: 64px; height: 64px; flex: none; }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 15px; color: var(--muted); letter-spacing: .02em; }
+  h1 { margin: 2px 0 0; font-family: var(--display); font-weight: 900; font-size: clamp(26px, 5vw, 38px); line-height: 1.05; letter-spacing: -.02em; }
+  .lede { margin: 16px 0 22px; font-size: 18px; color: var(--muted); }
+
+  ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; counter-reset: n; }
+  ol li { counter-increment: n; position: relative; padding: 16px 16px 16px 66px; border: 1.5px solid var(--line); border-radius: 14px; min-width: 0; }
+  ol li::before {
+    content: counter(n);
+    position: absolute; left: 16px; top: 16px;
+    width: 36px; height: 36px; border-radius: 11px;
+    display: grid; place-items: center;
+    background: var(--grad); color: #04201A;
+    font-family: var(--display); font-weight: 800; font-size: 17px;
+  }
+  ol b { display: block; font-family: var(--display); font-size: 19px; margin-bottom: 4px; }
+  ol span { font-size: 15.5px; color: var(--muted); }
+
+  h2 { margin: 26px 0 12px; font-family: var(--display); font-size: 21px; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  ul li { position: relative; padding: 11px 14px 11px 44px; background: var(--tint); border-radius: 12px; font-size: 16.5px; }
+  ul li::before { content: "✓"; position: absolute; left: 16px; top: 10px; color: var(--accent); font-weight: 800; font-size: 18px; }
+
+  .foot { margin-top: 24px; padding-top: 14px; border-top: 1.5px dashed var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--muted); }
+  .foot b { color: var(--ink); }
+
+  .actions { width: min(210mm, 100%); margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .actions a, .actions button {
+    font: 700 15px var(--display); text-decoration: none; cursor: pointer;
+    padding: 13px 22px; border-radius: 999px; border: 1.5px solid #C9D6E2; background: #fff; color: var(--ink);
+  }
+  .actions .go { background: var(--grad); border-color: transparent; color: #04201A; }
+
+  @media (max-width: 560px) { ol { grid-template-columns: 1fr; } }
+
+  /* на бумаге — только лист, без фона и кнопок */
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    html, body { background: #fff; padding: 0; }
+    .actions { display: none; }
+    .sheet { box-shadow: none; border-radius: 0; padding: 0; width: 100%; }
+    ol li, ul li { break-inside: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="actions">
+  <a href="/#teachers">← На сайт</a>
+  <button class="go" onclick="window.print()">Распечатать</button>
+  <a href="/teachers/pamyatka.png" download>Скачать картинкой</a>
+</div>
+
+<main class="sheet">
+  <div class="top">
+    <img src="/favicon.svg" alt="">
+    <div>
+      <div class="brand">ВОСЕМЬ ЛОВУШЕК · ПАМЯТКА</div>
+      <h1>Четыре признака обмана</h1>
+    </div>
+  </div>
+  <p class="lede">Схемы меняются каждый месяц, а признаки — нет. Увидел хоть один — остановись.</p>
+
+  <ol>
+    <li><b>Торопят</b><span>«Прямо сейчас», «через час сгорит», «водитель ждёт». Спешка нужна ему, а не тебе.</span></li>
+    <li><b>Просят лишнее</b><span>Код из СМС, пароль, фото, данные карты, перевод. Нормальные люди и организации этого не просят.</span></li>
+    <li><b>Обещают лёгкие деньги</b><span>Приз, подработка без опыта, «3000 за карту». Лёгких денег не бывает — бывает статья.</span></li>
+    <li><b>Просят молчать</b><span>«Родителям не говори», «разговор секретный». Самый верный признак: дальше разговаривать не о чем.</span></li>
+  </ol>
+
+  <h2>Если что-то из этого случилось</h2>
+  <ul>
+    <li>Закончить разговор — положить трубку, не отвечать, не переходить по ссылке</li>
+    <li>Проверить самому: позвонить человеку или в банк по номеру, который знаешь</li>
+    <li>Если отказал, а он давит дальше, — это тоже признак. Второй раз отказывать так же твёрдо</li>
+    <li>Сохранить переписку, а не удалять её</li>
+    <li>Рассказать взрослому — родителям, учителю, в полицию. Это не стыдно</li>
+  </ul>
+
+  <div class="foot">
+    <span>Проверь себя в игре: <b>vosem-lovushek.duckdns.org</b></span>
+    <span>Полиция — <b>102</b> · Единый номер — <b>112</b></span>
+  </div>
+</main>
+
+</body>
+</html>
