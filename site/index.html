@@ -523,6 +523,9 @@
       linear-gradient(180deg, rgba(17, 26, 43, .9), rgba(11, 17, 32, .9));
   }
   .final .sub { margin-inline: auto; }
+  /* на телефоне длинная кнопка («Уже играл? Оставь отзыв») переносится, а не вылезает за карточку */
+  .final .btn { max-width: 100%; white-space: normal; text-align: center; }
+  @media (max-width: 480px) { .final .btn--ghost { padding: 15px 22px; font-size: 16px; } }
   .final .ico { margin: 0 auto 22px; }
 
   footer { position: relative; border-top: 1px solid var(--line); padding-block: 30px 44px; color: var(--muted); font-size: 17px; }

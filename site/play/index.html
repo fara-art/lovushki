@@ -1828,16 +1828,17 @@
 
         <div class="sessions" id="sessions"></div>
 
-        <div class="agerow">
-          <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта">
-          <button class="btn btn--go" id="newSession">Создать</button>
-        </div>
         <button type="button" class="pupil-toggle" id="pupilToggle" aria-pressed="false" aria-controls="pupilBox"><span class="pupil-toggle__box" aria-hidden="true"></span>Я ученик</button>
         <div class="pupil-form" id="pupilBox" hidden>
           <input type="text" id="pFirst" maxlength="30" placeholder="Имя" aria-label="Имя" autocomplete="given-name">
           <input type="text" id="pLast" maxlength="30" placeholder="Фамилия" aria-label="Фамилия" autocomplete="family-name">
           <input type="text" id="pGrade" maxlength="10" placeholder="Класс, например 7Б" aria-label="Класс" autocomplete="off">
-          <p class="note">Имя, фамилию и класс увидит только учитель — так он найдёт тебя в списке тех, кто прошёл игру. Ник можно не придумывать.</p>
+          <p class="note">Имя, фамилию и класс увидит только учитель — так он найдёт тебя в списке тех, кто прошёл игру.</p>
+        </div>
+
+        <div class="agerow">
+          <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта">
+          <button class="btn btn--go" id="newSession">Создать</button>
         </div>
         <p class="note" id="nameNote"></p>
       </div>
@@ -3911,14 +3912,11 @@ var Pupil = (function () {
     box.hidden = true;
     Array.prototype.forEach.call(box.querySelectorAll("input"), function (i) { i.value = ""; });
   }
-  /** Ник для ученика, если свой не придумал: «Петя», занят — «Петя И.» */
+  /** Название аккаунта ученика: «Петя Сидоров», длинное — «Константин К.». Уже есть — "" */
   function nickFor(st, taken, max) {
-    var tries = [st.first, st.first + " " + st.last.charAt(0) + ".", st.first + " " + st.last];
-    for (var i = 0; i < tries.length; i++) {
-      var n = tries[i].slice(0, max);
-      if (!taken(n)) return n;
-    }
-    return "";
+    var n = st.first + " " + st.last;
+    if (n.length > max) n = (st.first + " " + st.last.charAt(0) + ".").slice(0, max);
+    return taken(n) ? "" : n;
   }
   return { read: read, fullName: fullName, report: report, bindToggle: bindToggle, isOn: isOn, reset: reset, nickFor: nickFor, cleanGrade: cleanGrade };
 })();
@@ -4001,7 +3999,7 @@ function paintSessions() {
     return '<div class="session">' +
       '<button class="session__main" data-id="' + prof.id + '">' +
         "<b>" + escapeHtml(prof.name) + "</b>" +
-        (prof.student ? '<span class="pupil-tag">' + escapeHtml(Pupil.fullName(prof.student) + " · " + prof.student.grade + " класс") + "</span>" : "") +
+        (prof.student ? '<span class="pupil-tag">' + escapeHtml((Pupil.fullName(prof.student) === prof.name ? "" : Pupil.fullName(prof.student) + " · ") + prof.student.grade + " класс") + "</span>" : "") +
         "<span>верных ответов: " + prof.correct + best + "</span>" +
       "</button>" +
       '<button class="session__del" data-del="' + prof.id + '" title="Удалить аккаунт" aria-label="Удалить аккаунт ' + escapeHtml(prof.name) + '">×</button>' +
@@ -4046,8 +4044,12 @@ function createSession() {
       return;
     }
     student = got.student;
-    // ник не придуман — берём имя
-    if (!name) name = Pupil.nickFor(student, taken, 14);
+    name = Pupil.nickFor(student, taken, 18);
+    if (!name) {
+      note.dataset.kind = "error";
+      note.textContent = "Такой ученик уже есть — выбери его в списке";
+      return;
+    }
   }
 
   if (name.length < 2) {
@@ -4067,6 +4069,7 @@ function createSession() {
   state.profiles.push(prof);
   el("newName").value = "";
   Pupil.reset(el("pupilToggle"), el("pupilBox"));
+  el("newName").hidden = false;
   note.dataset.kind = "";
   note.textContent = "";
   useProfile(prof.id);
@@ -4087,8 +4090,9 @@ function reportProfile(prof) {
   });
 }
 
+// ученик: ника нет — аккаунт называется его именем и фамилией
 Pupil.bindToggle(el("pupilToggle"), el("pupilBox"), on => {
-  el("newName").placeholder = on ? "ник по желанию" : "новый ник";
+  el("newName").hidden = on;
   el("nameNote").textContent = "";
 });
 ["pFirst", "pLast", "pGrade"].forEach(id => el(id).addEventListener("keydown", e => { if (e.key === "Enter") createSession(); }));

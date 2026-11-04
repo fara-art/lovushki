@@ -411,6 +411,10 @@
   .sess__del:hover, .sess__del.ask { border-color: var(--alarm); color: #FF9C91; }
   .sess__del.ask { width: auto; padding: 0 12px; font-size: 13px; }
   .newrow { display: flex; gap: 10px; }
+  .pupil-toggle + .pupil-form + .newrow, .pupil-toggle + .pupil-form[hidden] + .newrow { margin-top: 12px; }
+  /* ученик: ник спрятан — «Создать» во всю ширину */
+  .newrow input[hidden] { display: none; }
+  .newrow input[hidden] + .btn { flex: 1 1 auto; }
   .newrow input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid #2E4366; background: #0E1526; color: var(--paper); font: 16px var(--body); }
   .newrow input:focus { outline: none; border-color: var(--mint); }
   /* «Я ученик»: переключатель и три поля под ником */
@@ -588,16 +592,16 @@
     <h2>Кто играет?</h2>
     <p>У каждого аккаунта свои звёзды и открытые уровни. Пароль не нужен — просто выбери свой ник или создай новый.</p>
     <div class="sessions" id="sessions"></div>
-    <div class="newrow">
-      <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта" autocomplete="off">
-      <button class="btn" type="button" id="newSession">Создать</button>
-    </div>
     <button type="button" class="pupil-toggle" id="pupilToggle" aria-pressed="false" aria-controls="pupilBox"><span class="pupil-toggle__box" aria-hidden="true"></span>Я ученик</button>
     <div class="pupil-form" id="pupilBox" hidden>
       <input type="text" id="pFirst" maxlength="30" placeholder="Имя" aria-label="Имя" autocomplete="given-name">
       <input type="text" id="pLast" maxlength="30" placeholder="Фамилия" aria-label="Фамилия" autocomplete="family-name">
       <input type="text" id="pGrade" maxlength="10" placeholder="Класс, например 7Б" aria-label="Класс" autocomplete="off">
-      <p class="hint">Имя, фамилию и класс увидит только учитель — так он найдёт тебя в списке тех, кто прошёл игру. Ник можно не придумывать.</p>
+      <p class="hint">Имя, фамилию и класс увидит только учитель — так он найдёт тебя в списке тех, кто прошёл игру.</p>
+    </div>
+    <div class="newrow">
+      <input type="text" id="newName" maxlength="14" placeholder="новый ник" aria-label="Ник нового аккаунта" autocomplete="off">
+      <button class="btn" type="button" id="newSession">Создать</button>
     </div>
     <p class="hint" id="nameNote"></p>
     <div class="row" id="profBackRow"><button class="btn btn--ghost" type="button" id="profBack">Назад</button></div>
@@ -1375,14 +1379,11 @@ var Pupil = (function () {
     box.hidden = true;
     Array.prototype.forEach.call(box.querySelectorAll("input"), function (i) { i.value = ""; });
   }
-  /** Ник для ученика, если свой не придумал: «Петя», занят — «Петя И.» */
+  /** Название аккаунта ученика: «Петя Сидоров», длинное — «Константин К.». Уже есть — "" */
   function nickFor(st, taken, max) {
-    var tries = [st.first, st.first + " " + st.last.charAt(0) + ".", st.first + " " + st.last];
-    for (var i = 0; i < tries.length; i++) {
-      var n = tries[i].slice(0, max);
-      if (!taken(n)) return n;
-    }
-    return "";
+    var n = st.first + " " + st.last;
+    if (n.length > max) n = (st.first + " " + st.last.charAt(0) + ".").slice(0, max);
+    return taken(n) ? "" : n;
   }
   return { read: read, fullName: fullName, report: report, bindToggle: bindToggle, isOn: isOn, reset: reset, nickFor: nickFor, cleanGrade: cleanGrade };
 })();
@@ -2202,7 +2203,7 @@ function renderSessions() {
     var st = profileStats(store.list[n]);
     return '<div class="sess"><button class="sess__pick' + (n === store.active ? " on" : "") + '" type="button" data-pick="' + esc(n) + '">' +
       '<span class="ava ava--sm" style="background:' + avaColor(n) + '">' + esc(n.charAt(0).toUpperCase()) + "</span>" +
-      "<span><b>" + esc(n) + "</b>" + (store.list[n].student ? '<span class="pupil-tag">' + esc(Pupil.fullName(store.list[n].student) + " · " + store.list[n].student.grade + " класс") + "</span>" : "") + "<small><span class=\"gold\">★</span> " + st.stars + " из " + (LEVELS.length * 3) + " · уровней: " + st.done + " из " + LEVELS.length + (live[n] ? " · ▶ идёт уровень " + (live[n].lvl + 1) : "") + "</small></span>" +
+      "<span><b>" + esc(n) + "</b>" + (store.list[n].student ? '<span class="pupil-tag">' + esc((Pupil.fullName(store.list[n].student) === n ? "" : Pupil.fullName(store.list[n].student) + " · ") + store.list[n].student.grade + " класс") + "</span>" : "") + "<small><span class=\"gold\">★</span> " + st.stars + " из " + (LEVELS.length * 3) + " · уровней: " + st.done + " из " + LEVELS.length + (live[n] ? " · ▶ идёт уровень " + (live[n].lvl + 1) : "") + "</small></span>" +
       (n === store.active ? "<i>сейчас</i>" : "") + "</button>" +
       '<button class="sess__del" type="button" data-del="' + esc(n) + '" aria-label="Удалить аккаунт ' + esc(n) + '">×</button></div>';
   }).join("") : '<p class="hint">Аккаунтов пока нет — придумай ник и нажми «Создать».</p>';
@@ -2227,7 +2228,8 @@ function createProfile() {
     if (got.error) { $("nameNote").textContent = got.error; got.field.focus(); return; }
     student = got.student;
     // ник не придуман — берём имя
-    if (!name) name = Pupil.nickFor(student, isTaken, 14);
+    name = Pupil.nickFor(student, isTaken, 18);
+    if (!name) { $("nameNote").textContent = "Такой ученик уже есть — выбери его в списке."; return; }
   }
   if (!name) { $("nameNote").textContent = "Напиши ник — хотя бы одну букву."; return; }
   if (isTaken(name)) { $("nameNote").textContent = "Такой ник уже есть — выбери его в списке или придумай другой."; return; }
@@ -2235,6 +2237,7 @@ function createProfile() {
   if (student) store.list[name].student = student;
   $("newName").value = "";
   Pupil.reset($("pupilToggle"), $("pupilBox"));
+  $("newName").hidden = false;
   useProfile(name);
   $("profileLayer").hidden = true;
   openMenu();
@@ -2360,7 +2363,7 @@ $("acctBtn").addEventListener("click", openProfiles);
 $("pAcct").addEventListener("click", openProfiles);
 $("profBack").addEventListener("click", openMenu);
 $("newSession").addEventListener("click", createProfile);
-Pupil.bindToggle($("pupilToggle"), $("pupilBox"), function (on) { $("newName").placeholder = on ? "ник по желанию" : "новый ник"; $("nameNote").textContent = ""; });
+Pupil.bindToggle($("pupilToggle"), $("pupilBox"), function (on) { $("newName").hidden = on; $("nameNote").textContent = ""; });
 ["pFirst", "pLast", "pGrade"].forEach(function (id) { $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") createProfile(); }); });
 $("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") createProfile(); });
 $("sessions").addEventListener("click", function (e) {
