@@ -24,6 +24,15 @@ if [ -z "$DOMAIN" ]; then
     echo "Укажи имя сайта: sh deploy/https.sh имя.duckdns.org"
     exit 1
 fi
+# Имя попадает в конфиг nginx и в команды — пропускаем только настоящее доменное имя
+if ! printf '%s' "$DOMAIN" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'; then
+    echo "«$DOMAIN» не похоже на имя сайта. Пример: sh deploy/https.sh имя.duckdns.org"
+    exit 1
+fi
+if [ -n "$EMAIL" ] && ! printf '%s' "$EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; then
+    echo "«$EMAIL» не похоже на адрес почты."
+    exit 1
+fi
 
 echo "→ Ищу конфиг сайта"
 for candidate in /etc/nginx/sites-available/lovushki /etc/nginx/conf.d/lovushki.conf; do
@@ -86,6 +95,7 @@ mkdir -p /etc/lovushki && echo "$DOMAIN" > /etc/lovushki/domain
 
 echo "→ Оставляю рабочей старую ссылку по адресу сервера"
 IP_CONF="/etc/nginx/conf.d/lovushki-ip.conf"
+cp "$ROOT/deploy/nginx-headers.conf" /etc/nginx/lovushki-headers.conf
 cp "$ROOT/deploy/nginx-ip.conf" "$IP_CONF"
 
 if nginx -t >/dev/null 2>&1; then

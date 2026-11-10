@@ -41,12 +41,17 @@ while :; do
     ask_secret "Ещё раз: "
     if [ -z "$P1" ]; then echo "Пароль не может быть пустым."; continue; fi
     if [ "$P1" != "$SECRET" ]; then echo "Не совпало, попробуй ещё раз."; continue; fi
+    # за этим паролем — фамилии и классы учеников, поэтому короткий не подойдёт
+    if [ "${#P1}" -lt 10 ]; then echo "Слишком короткий: нужно хотя бы 10 символов."; continue; fi
+    if [ "$P1" = "$LOGIN" ]; then echo "Пароль не должен совпадать с логином."; continue; fi
     break
 done
 if ! command -v openssl >/dev/null 2>&1; then
     apt-get update -qq && apt-get install -y -qq openssl
 fi
-HASH=$(printf '%s' "$P1" | openssl passwd -apr1 -stdin)
+# SHA-512 с солью: если файл с паролем когда-нибудь утечёт, подобрать пароль по нему
+# на порядки труднее, чем по старому формату apr1 (MD5)
+HASH=$(printf '%s' "$P1" | openssl passwd -6 -stdin)
 printf '%s:%s\n' "$LOGIN" "$HASH" > "$HTPASSWD"
 chown root:www-data "$HTPASSWD"
 chmod 640 "$HTPASSWD"

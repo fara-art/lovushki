@@ -46,6 +46,7 @@ import io
 import json
 import os
 import re
+import secrets
 import smtplib
 import ssl
 import sys
@@ -82,6 +83,10 @@ MAIL = {
     "site": os.environ.get("SITE_URL", ""),
 }
 
+# Файлы с отзывами и фамилиями учеников читает только сама служба (и root):
+# всё, что она создаёт, — без доступа для остальных пользователей сервера
+os.umask(0o077)
+
 lock = threading.Lock()
 
 # ---------- кулдаун: чтобы с одного компьютера не сыпались отзывы ----------
@@ -91,6 +96,9 @@ DAY_LIMIT = 120             # отзывов за сутки с одного к�
 # Целый класс сидит за одним адресом школы: 30 детей пишут отзыв в конце урока
 NET_WINDOW_LIMIT = 200
 NET_DAY_LIMIT = 1000
+# Новых аккаунтов в списке «Кто играл» с одного адреса за сутки: школе хватит с запасом
+# (30 учеников × 2 игры × несколько классов), а завалить список мусором не выйдет
+NEW_PLAYERS_DAY = 2000
 SALT = os.urandom(16)       # новая соль при каждом запуске: хэши нельзя сверить с адресами
 recent = {}                 # хэш → времена отправки за последние сутки
 recent_lock = threading.Lock()
@@ -131,6 +139,20 @@ def note_sent(computer, ip, now=None):
             recent[k] = [t for t in recent.get(k, []) if now - t < 86400] + [now]
 
 
+def new_player_allowed(net, now=None):
+    """Можно ли с этого адреса завести ещё один аккаунт сегодня; если да — засчитывает его."""
+    if not net:
+        return True
+    now = now or time.time()
+    with recent_lock:
+        day = [t for t in recent.get(net, []) if now - t < 86400]
+        if len(day) >= NEW_PLAYERS_DAY:
+            recent[net] = day
+            return False
+        recent[net] = day + [now]
+    return True
+
+
 def clean_text(value, limit=MAX_TEXT):
     """Обычный текст без управляющих символов, не длиннее limit."""
     if not isinstance(value, str):
@@ -167,7 +189,7 @@ def same_owner(path):
         st = os.stat(DATA_DIR)
         if os.geteuid() == 0:
             os.chown(path, st.st_uid, st.st_gid)
-        os.chmod(path, 0o640)
+        os.chmod(path, 0o600)
     except OSError:
         pass
 
@@ -205,11 +227,26 @@ def valid_rating(value):
     return int(value) if value == int(value) else round(value, 1)
 
 
+stats_cache = [None, None]      # (время изменения и размер файла, готовый ответ)
+
+
 def stats():
+    """Число оценок и средняя. Адрес открыт всем, поэтому файл перечитываем, только когда
+    он изменился: иначе частыми запросами можно было бы занять сервер чтением диска."""
+    try:
+        st = os.stat(DATA_FILE)
+        mark = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        mark = None
+    if stats_cache[1] is not None and stats_cache[0] == mark:
+        return dict(stats_cache[1])
     ratings = [r.get("rating") for r in read_all() if valid_rating(r.get("rating")) is not None]
     if not ratings:
-        return {"count": 0, "average": None}
-    return {"count": len(ratings), "average": round(sum(ratings) / len(ratings), 1)}
+        result = {"count": 0, "average": None}
+    else:
+        result = {"count": len(ratings), "average": round(sum(ratings) / len(ratings), 1)}
+    stats_cache[0], stats_cache[1] = mark, result
+    return dict(result)
 
 
 def num(n):
@@ -875,23 +912,24 @@ def progress_text(p):
     return f"уровней {pr.get('levels', 0)} из {pr.get('of', 1)} · ★ {pr.get('stars', 0)}"
 
 
-def save_player(data, now=None):
-    """Обновляет запись игрока. Возвращает False, если запрос не похож на игру."""
+def save_player(data, now=None, net=None):
+    """Обновляет запись игрока. "ok" — записано, "bad" — запрос не похож на игру,
+    "busy" — с этого адреса (net) сегодня слишком много новых аккаунтов или список полон."""
     game = data.get("game")
     if game not in GAMES:
-        return False
+        return "bad"
     client = re.sub(r"[^A-Za-z0-9-]", "", str(data.get("client") or ""))[:40]
     pid = re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("pid") or ""))[:40]
     nick = clean_text(data.get("nick"), 30).replace("\n", " ")
     if len(client) < 8 or not pid or not nick:
-        return False
+        return "bad"
     key_ = hashlib.sha1(f"{game}:{client}:{pid}".encode("utf-8")).hexdigest()[:16]
     stamp = (now or datetime.now(TZ)).strftime("%Y-%m-%d %H:%M")
     with players_lock:
         players = read_players()
         old = players.get(key_)
-        if old is None and len(players) >= MAX_PLAYERS:
-            return False
+        if old is None and (len(players) >= MAX_PLAYERS or not new_player_allowed(net)):
+            return "busy"
         rec = dict(old or {"first_seen": stamp})
         rec.update({"game": game, "nick": nick, "last_seen": stamp,
                     "student": clean_student(data.get("student")),
@@ -901,7 +939,7 @@ def save_player(data, now=None):
             rec["cert"] = stamp
         players[key_] = rec
         write_players(players)
-    return True
+    return "ok"
 
 
 def player_rows(game=None, grade=None):
@@ -1088,8 +1126,22 @@ if (pm) {{
 </body></html>"""
 
 
+# Заголовки защиты для всего, что отдаёт служба. Страницы админки получают свой CSP
+# с одноразовой меткой (nonce): выполняется только наш скрипт, даже если бы в текст
+# отзыва или в фамилию как-то попал чужой код.
+BASE_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+
+def admin_csp(nonce):
+    return ("default-src 'none'; script-src 'nonce-" + nonce + "'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self'; font-src 'self' data:; connect-src 'self'; "
+            "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "lovushki-feedback"
+    sys_version = ""
+    timeout = 20            # зависшее соединение не держит поток вечно
 
     def log_message(self, fmt, *args):
         # без журнала запросов: в нём оказался бы адрес отправителя
@@ -1099,17 +1151,35 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(code, body.encode("utf-8"), ctype, extra)
 
     def send_bytes(self, code, data, ctype, extra=None):
+        headers = {
+            "Content-Type": ctype,
+            "Cache-Control": "no-store",
+            "Content-Length": str(len(data)),
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Referrer-Policy": "no-referrer",
+            "Content-Security-Policy": BASE_CSP,
+        }
+        headers.update(extra or {})
         self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        for k, v in (extra or {}).items():
+        for k, v in headers.items():
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
 
     def reply(self, code, payload):
         self.send(code, json.dumps(payload, ensure_ascii=False), "application/json; charset=utf-8")
+
+    def send_admin(self, page):
+        """Страница админки: её скрипт помечаем одноразовой меткой и разрешаем только его."""
+        nonce = secrets.token_urlsafe(18)
+        self.send(200, page.replace("<script>", f'<script nonce="{nonce}">'), "text/html; charset=utf-8",
+                  {"Content-Security-Policy": admin_csp(nonce)})
+
+    def is_json(self):
+        """Чужой сайт не может молча отправить application/json из браузера посетителя —
+        так отзывы и список игроков нельзя засорять через чужие страницы."""
+        return (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() == "application/json"
 
     def read_json(self, limit):
         """Тело запроса как словарь; None — если пусто, слишком велико или не JSON."""
@@ -1130,9 +1200,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/feedback/stats":
             self.reply(200, stats())
         elif path in ("/admin", "/admin/"):
-            self.send(200, admin_page(), "text/html; charset=utf-8")
+            self.send_admin(admin_page())
         elif path == "/admin/igroki":
-            self.send(200, players_page(), "text/html; charset=utf-8")
+            self.send_admin(players_page())
         elif path == "/admin/igroki.xlsx":
             query = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             game = (query.get("game") or [""])[0]
@@ -1182,20 +1252,25 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, {"ok": True, "removed": delete_players(ids)})
             return
         if self.path.split("?")[0] == "/api/players":
-            data = self.read_json(MAX_BODY)
+            data = self.read_json(MAX_BODY) if self.is_json() else None
             if data is None:
                 self.reply(400, {"ok": False, "error": "json"})
                 return
+            # адрес — только для суточного лимита новых аккаунтов: хэш в памяти, в файл не пишется
+            ip = self.headers.get("X-Real-IP") or self.client_address[0]
             try:
-                ok = save_player(data)
+                result = save_player(data, net=key("newpl", ip))
             except OSError as e:
                 print("Игрок не записался:", e, file=sys.stderr, flush=True)
                 self.reply(500, {"ok": False, "error": "write"})
                 return
-            self.reply(200 if ok else 400, {"ok": ok})
+            self.reply({"ok": 200, "bad": 400, "busy": 429}[result], {"ok": result == "ok"})
             return
         if self.path.split("?")[0] != "/api/feedback":
             self.reply(404, {"ok": False})
+            return
+        if not self.is_json():
+            self.reply(415, {"ok": False, "error": "type"})
             return
         try:
             length = int(self.headers.get("Content-Length") or 0)

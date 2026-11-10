@@ -1317,7 +1317,11 @@ var Pupil = (function () {
     var id = get(CLIENT);
     if (!id) {
       id = "";
-      for (var i = 0; i < 24; i++) id += "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36));
+      // метка — как ключ от записи этого компьютера в списке «Кто играл»: берём стойкие случайные
+      // числа браузера, чтобы её нельзя было угадать и переписать чужой результат
+      var abc = "abcdefghijklmnopqrstuvwxyz0123456789", rnd = null;
+      try { rnd = window.crypto.getRandomValues(new Uint8Array(24)); } catch (e) { rnd = null; }
+      for (var i = 0; i < 24; i++) id += abc.charAt(rnd ? rnd[i] % 36 : Math.floor(Math.random() * 36));
       put(CLIENT, id);
     }
     return id;

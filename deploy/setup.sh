@@ -61,14 +61,34 @@ After=network.target
 ExecStart=$(command -v python3) /opt/lovushki/feedback.py
 User=www-data
 StateDirectory=lovushki
+# отзывы и фамилии учеников читает только сама служба (и root)
+StateDirectoryMode=0700
+UMask=0077
 # почта для отзывов (если настроена через deploy/feedback-setup.sh)
 EnvironmentFile=-/etc/lovushki/feedback.env
 Restart=always
 RestartSec=3
+# Песочница: службе нужны только сеть и своя папка. Если в feedback.py когда-нибудь
+# найдётся ошибка, через неё не добраться до остального сервера.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target
@@ -83,6 +103,9 @@ UNIT
     # старой версии), служба не может дописывать новые, и на сайте «Не получилось отправить»
     if [ -d /var/lib/lovushki ] && id www-data >/dev/null 2>&1; then
         chown -R www-data:www-data /var/lib/lovushki
+        # и закрыты от остальных пользователей сервера: там фамилии и классы учеников
+        chmod 700 /var/lib/lovushki
+        find /var/lib/lovushki -type f -exec chmod 600 {} \;
     fi
     systemctl daemon-reload
     systemctl enable lovushki-feedback >/dev/null 2>&1 || true
@@ -121,6 +144,9 @@ if [ -n "$HTTPS_DOMAIN" ]; then
 fi
 
 echo "→ Подключаю конфиг"
+# общий список заголовков защиты — его подключают оба конфига сайта
+cp "$ROOT/deploy/nginx-headers.conf" /etc/nginx/lovushki-headers.conf
+chmod 644 /etc/nginx/lovushki-headers.conf
 if [ -d /etc/nginx/sites-available ] && [ -d /etc/nginx/sites-enabled ]; then
     cp "$ROOT/deploy/nginx.conf" "/etc/nginx/sites-available/$CONF_NAME"
     ln -sf "/etc/nginx/sites-available/$CONF_NAME" "/etc/nginx/sites-enabled/$CONF_NAME"

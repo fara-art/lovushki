@@ -1173,7 +1173,7 @@
 <footer>
   <div class="wrap foot__row">
     <span>«Восемь ловушек» (Vosem Lovushek) — учебная игра о безопасности в сети и в жизни</span>
-    <span>Работает без регистрации и без сбора данных · <a href="#feedback" data-feedback>оставить отзыв</a></span>
+    <span>Работает без регистрации. Имя, фамилия и класс сохраняются, только если сам отметишь «Я ученик» · <a href="#feedback" data-feedback>оставить отзыв</a></span>
   </div>
 </footer>
 
@@ -1253,7 +1253,10 @@
       var id = store("lovushki.fbClient");
       if (!id) {
         id = "";
-        for (var ci = 0; ci < 24; ci++) id += "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36));
+        // стойкие случайные числа браузера: метку нельзя угадать
+        var abc = "abcdefghijklmnopqrstuvwxyz0123456789", rnd = null;
+        try { rnd = window.crypto.getRandomValues(new Uint8Array(24)); } catch (e) { rnd = null; }
+        for (var ci = 0; ci < 24; ci++) id += abc.charAt(rnd ? rnd[ci] % 36 : Math.floor(Math.random() * 36));
         store("lovushki.fbClient", id);
       }
       return id || "";
