@@ -15,6 +15,7 @@
   - `feedback-setup.sh` — пароль `/admin/` и почта для отзывов
   - `indexnow.sh` — уведомление Яндекса/Bing об обновлении
   - `nginx.conf`, `nginx-ip.conf`, `nginx-headers.conf` — конфиги сайта и общий список заголовков защиты
+  - `http2.sh` — включает HTTP/2 в блоке https после certbot (зовут setup.sh и https.sh)
 
 ## Выкладка
 

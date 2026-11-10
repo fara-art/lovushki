@@ -192,6 +192,7 @@ if [ -n "$HTTPS_DOMAIN" ] && command -v certbot >/dev/null 2>&1; then
     echo "→ Возвращаю https для $HTTPS_DOMAIN (сертификат уже есть, новый не запрашиваю)"
     if certbot install --nginx --cert-name "$HTTPS_DOMAIN" --redirect --non-interactive >/dev/null 2>&1; then
         echo "  замочек на месте"
+        sh "$ROOT/deploy/http2.sh" "$CONF_PATH" || true
     else
         echo "  НЕ ВЫШЛО — сайт сейчас без https. Включи заново: sh deploy/https.sh $HTTPS_DOMAIN"
     fi
