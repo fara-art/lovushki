@@ -341,6 +341,19 @@
     touch-action: none;
   }
 
+  /*
+   * «Развернуть» там, где браузер не умеет настоящий полноэкранный режим (iPhone):
+   * без полей, рамок и подсказки — игра занимает всё место под адресной строкой.
+   * Отступы остаются только под чёлку и полоску «Домой».
+   */
+  html.maxed .shell {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    gap: 0;
+  }
+  html.maxed .hud { border-radius: 0; border-width: 0 0 1px; box-shadow: none; padding: 5px 8px; gap: 6px; }
+  html.maxed .stage { border-radius: 0; border: 0; }
+  html.maxed .footnote { display: none; }
+
   .footnote {
     font-size: calc(12px * var(--ui-text));
     color: var(--muted);
@@ -4414,11 +4427,23 @@ function isFullscreen() {
   return !!(document.fullscreenElement || document.webkitFullscreenElement);
 }
 
+// «Развёрнуто»: игра без полей на всё место внутри браузера (html.maxed) — там,
+// где настоящего полноэкранного режима нет. Запоминаем, чтобы не жать каждый раз.
+const MAXED_STORE = "traps.maxed";
+function isMaxed() {
+  return document.documentElement.classList.contains("maxed");
+}
+function setMaxed(on) {
+  document.documentElement.classList.toggle("maxed", on);
+  try { localStorage.setItem(MAXED_STORE, on ? "1" : "0"); } catch (e) { /* приватный режим */ }
+  paintFullButton();
+}
+
 function paintFullButton() {
   const btn = el("fullBtn");
-  const on = isFullscreen();
+  const on = isFullscreen() || isMaxed();
   btn.innerHTML = on ? ICON_SHRINK : ICON_FULL;
-  btn.title = on ? "Выйти из полноэкранного режима" : "Во весь экран";
+  btn.title = on ? "Свернуть обратно" : "Во весь экран";
   btn.setAttribute("aria-label", btn.title);
 }
 
@@ -4459,8 +4484,24 @@ function showFullTip() {
   show("fullTipLayer", true);
 }
 
+/** Браузер не умеет полноэкранный режим: разворачиваем игру внутри него и один раз
+ *  подсказываем, как убрать и панели браузера — через экран «Домой». */
+function maximizeInstead() {
+  setMaxed(true);
+  let told = false;
+  try { told = localStorage.getItem("traps.maxedTip") === "1"; localStorage.setItem("traps.maxedTip", "1"); } catch (e) { told = false; }
+  if (!told) {
+    if (platformKind() === "ios") {
+      toast("Игра развёрнута", "Чтобы убрать и панели Safari: «Поделиться» → «На экран „Домой“». Поверни телефон — карта станет шире.");
+    } else {
+      toast("Игра развёрнута", "Совсем без панелей браузера — через «Добавить на главный экран».");
+    }
+  }
+}
+
 function toggleFullscreen() {
   try {
+    if (isMaxed()) { setMaxed(false); return; }
     if (isFullscreen()) {
       (document.exitFullscreen || document.webkitExitFullscreen).call(document);
       return;
@@ -4468,16 +4509,18 @@ function toggleFullscreen() {
     const root = document.documentElement;
     const request = root.requestFullscreen || root.webkitRequestFullscreen;
     const able = document.fullscreenEnabled || document.webkitFullscreenEnabled;
-    if (!request || !able) { showFullTip(); return; }
+    if (!request || !able) { maximizeInstead(); return; }
     const done = request.call(root, { navigationUI: "hide" });
-    if (done && done.catch) done.catch(() => showFullTip());
+    if (done && done.catch) done.catch(() => maximizeInstead());
   } catch (e) {
-    showFullTip();
+    maximizeInstead();
   }
 }
 
 const runsAsApp = (window.matchMedia && window.matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches) || navigator.standalone === true;
 el("fullBtn").hidden = runsAsApp;
+// развёрнуто в прошлый раз — разворачиваем сразу (если игра не запущена как приложение)
+try { if (!runsAsApp && localStorage.getItem(MAXED_STORE) === "1") document.documentElement.classList.add("maxed"); } catch (e) { /* приватный режим */ }
 paintFullButton();
 el("fullBtn").addEventListener("click", toggleFullscreen);
 
