@@ -939,18 +939,42 @@
     box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
     animation: toastIn .34s cubic-bezier(.2, .9, .3, 1.2), toastOut .45s ease-in 3.4s forwards;
   }
-  .toast__mark {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+  /* значок — по центру квадрата. Раньше правило для текста (.toast span) делало и его
+     обычным блоком, и иконка прилипала к левому верхнему углу */
+  .toast .toast__mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
     background: color-mix(in srgb, var(--accent) 22%, transparent);
     color: var(--accent);
     display: grid;
     place-items: center;
     flex: none;
+    align-self: flex-start;
   }
-  .toast b { display: block; font-family: var(--display); font-size: 12px; font-weight: 700; }
-  .toast span { display: block; font-size: 11px; color: var(--muted); }
+  .toast .toast__mark svg { display: block; }
+  .toast__text { min-width: 0; flex: 1; }
+  .toast__text b { display: block; font-family: var(--display); font-size: 12px; font-weight: 700; }
+  .toast__text span { display: block; font-size: 11px; color: var(--muted); }
+  .toast { pointer-events: auto; }
+  .toast__close {
+    flex: none;
+    align-self: flex-start;
+    width: 26px;
+    height: 26px;
+    margin: -5px -8px 0 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+  }
+  .toast__close:hover { color: var(--paper); background: color-mix(in srgb, var(--fog) 60%, transparent); }
+  .toast__close svg { display: block; }
+  /* длинная подсказка висит, пока её не закроют крестиком */
+  .toast--stay { animation: toastIn .34s cubic-bezier(.2, .9, .3, 1.2); }
+  .toast.is-gone { animation: toastOut .25s ease-in forwards; }
 
   @keyframes toastIn {
     from { transform: translateX(28px); opacity: 0; }
@@ -1058,6 +1082,41 @@
     white-space: nowrap;
   }
   .phone__bar .backlink { flex: none; }
+  /* «телефон в телефоне»: маленькая кнопка разворачивает игровой телефон на весь экран */
+  .phone__max {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin: -4px -8px -4px 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+  }
+  .phone__max:hover, .phone__max[aria-pressed="true"] { color: var(--paper); background: rgba(233, 237, 247, .1); }
+  .phone__max svg { display: block; }
+  .phone.phone--full {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    /* на телефоне — во всю ширину, на компьютере — высокий телефон посередине экрана */
+    width: min(100%, calc(460px * var(--ui-text)));
+    height: auto;
+    border-radius: 0;
+    border-width: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-shadow: 0 0 0 100vmax rgba(4, 7, 14, .78);
+    animation: phoneFull .22s ease-out;
+  }
+  @media (min-width: 500px) {
+    .phone.phone--full { border-radius: 30px; border-width: 3px; top: 12px; bottom: 12px; }
+  }
+  @keyframes phoneFull { from { transform: scale(.94); opacity: .6; } to { transform: none; opacity: 1; } }
 
   .phone__body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   /* у абзацев свои отступы браузера — из-за них между сообщениями были дыры */
@@ -1595,6 +1654,7 @@
         <button class="backlink" id="phoneSpeak">озвучить</button>
         <button class="backlink" id="phoneBack" hidden>назад</button>
         <button class="backlink" id="phoneClose" title="Выключить: в следующий раз откроется экран блокировки">выключить</button>
+        <button class="phone__max" id="phoneMax" type="button" title="Телефон во весь экран" aria-label="Телефон во весь экран" aria-pressed="false"></button>
       </div>
       <div class="phone__body" id="phoneBody"></div>
       <div class="phone__actions" id="phoneActions" hidden></div>
@@ -3432,6 +3492,8 @@ function achIcon(shape, color) {
     gun:    '<path d="M3 8h13v4h-2l-1 3H9l-1-3H6l-3 4z" fill="' + color + '"/><rect x="16" y="8" width="5" height="3" rx="1" fill="' + color + '" opacity=".6"/>',
     book:   '<path d="M4 4h7v16H4z" fill="' + color + '" opacity=".55"/><path d="M13 4h7v16h-7z" fill="' + color + '"/><path d="M12 3v18" stroke="' + color + '" stroke-width="1.6"/>',
     again:  '<path d="M20 12a8 8 0 1 1-2.4-5.7" fill="none" stroke="' + color + '" stroke-width="2.2" stroke-linecap="round"/><path d="M20 4.5v4h-4" fill="none" stroke="' + color + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+    expand: '<path d="M16 4h4v4M14 10l6-6M8 20H4v-4M4 20l6-6M16 20h4v-4M14 14l6 6M8 4H4v4M4 4l6 6" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    phone:  '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke="' + color + '" stroke-width="2"/><path d="M11 18.5h2" stroke="' + color + '" stroke-width="2" stroke-linecap="round"/>',
     cup:    '<path d="M7 4h10v5a5 5 0 0 1-10 0z" fill="' + color + '"/><path d="M10 14h4l1 5H9z" fill="' + color + '" opacity=".6"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" stroke="' + color + '" stroke-width="1.6" fill="none"/>'
   }[shape];
   return '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' + body + "</svg>";
@@ -3534,15 +3596,22 @@ function paintAch() {
 }
 
 /** Всплывающее уведомление справа сверху. Само уезжает через несколько секунд. */
-function toast(title, text, icon) {
+const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+
+/** Уведомление сверху справа. Закрывается крестиком; stay — не исчезает само (для длинных подсказок). */
+function toast(title, text, icon, stay) {
   el("toasts").dataset.low = el("rangeLayer").hidden ? "no" : "yes";
 
   const node = document.createElement("div");
-  node.className = "toast";
+  node.className = "toast" + (stay ? " toast--stay" : "");
+  node.setAttribute("role", "status");
   node.innerHTML = '<span class="toast__mark">' + (icon || achIcon("star", "#2BD9C2")) + "</span>" +
-                   "<div><b>" + escapeHtml(title) + "</b><span>" + escapeHtml(text || "") + "</span></div>";
+                   '<div class="toast__text"><b>' + escapeHtml(title) + "</b><span>" + escapeHtml(text || "") + "</span></div>" +
+                   '<button type="button" class="toast__close" aria-label="Закрыть уведомление">' + ICON_CLOSE + "</button>";
+  const close = () => { node.classList.add("is-gone"); setTimeout(() => node.remove(), 260); };
+  node.querySelector(".toast__close").addEventListener("click", close);
   el("toasts").appendChild(node);
-  setTimeout(() => node.remove(), 4200);
+  if (!stay) setTimeout(() => node.remove(), 4200);
   playRight();
 }
 
@@ -4492,9 +4561,9 @@ function maximizeInstead() {
   try { told = localStorage.getItem("traps.maxedTip") === "1"; localStorage.setItem("traps.maxedTip", "1"); } catch (e) { told = false; }
   if (!told) {
     if (platformKind() === "ios") {
-      toast("Игра развёрнута", "Чтобы убрать и панели Safari: «Поделиться» → «На экран „Домой“». Поверни телефон — карта станет шире.");
+      toast("Игра развёрнута", "Чтобы убрать и панели Safari: «Поделиться» → «На экран „Домой“». Поверни телефон — карта станет шире.", achIcon("expand", "#2BD9C2"), true);
     } else {
-      toast("Игра развёрнута", "Совсем без панелей браузера — через «Добавить на главный экран».");
+      toast("Игра развёрнута", "Совсем без панелей браузера — через «Добавить на главный экран».", achIcon("expand", "#2BD9C2"), true);
     }
   }
 }
@@ -5397,6 +5466,27 @@ function closePhone() {
 el("phoneBtn").addEventListener("click", () => {
   if (el("phone").hidden) openPhone(); else closePhone();
 });
+
+// Телефон во весь экран — «телефон в телефоне». Работает в любом браузере, без экрана «Домой»:
+// игровой телефон просто растягивается на всю страницу. Выбор запоминается.
+const PHONE_FULL_STORE = "traps.phoneFull";
+const ICON_PHONE_FULL = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M16 4h4v4M14 10l6-6M8 20H4v-4M4 20l6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_PHONE_SMALL = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M20 4l-6 6M14 6v4h4M4 20l6-6M10 18v-4H6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function setPhoneFull(on, remember) {
+  el("phone").classList.toggle("phone--full", on);
+  const btn = el("phoneMax");
+  btn.innerHTML = on ? ICON_PHONE_SMALL : ICON_PHONE_FULL;
+  btn.title = on ? "Свернуть телефон" : "Телефон во весь экран";
+  btn.setAttribute("aria-label", btn.title);
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  if (remember) { try { localStorage.setItem(PHONE_FULL_STORE, on ? "1" : "0"); } catch (e) { /* приватный режим */ } }
+}
+el("phoneMax").addEventListener("click", () => {
+  setPhoneFull(!el("phone").classList.contains("phone--full"), true);
+  // мини-игру не перерисовываем: она начнётся заново, а картинка и так растянется
+  if (!el("phone").hidden && state.phone.screen !== "zlappy") renderPhone();
+});
+try { setPhoneFull(localStorage.getItem(PHONE_FULL_STORE) === "1", false); } catch (e) { setPhoneFull(false, false); }
 // «выключить» в самом телефоне: в следующий раз — снова экран блокировки.
 // Кнопка телефона на карте и клавиша T только сворачивают: откроется та же страница
 el("phoneClose").addEventListener("click", () => {
